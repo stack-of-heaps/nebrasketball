@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>HttpExamples</title>
+  <title>NebrasketballMoms</title>
   <style>body { padding: 0; margin: 0; }</style>
 </head>
 
@@ -5333,17 +5333,56 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$element = _Browser_element;
-var $author$project$HttpExamples$initRandomMessage = {content: '', photos: $elm$core$Maybe$Nothing, reactions: $elm$core$Maybe$Nothing, sender: '', share: $elm$core$Maybe$Nothing, timestamp: 0};
+var $author$project$NebrasketballMoms$Unknown = {$: 'Unknown'};
+var $author$project$NebrasketballMoms$initRandomMessage = {content: '', messageType: $author$project$NebrasketballMoms$Unknown, photo: $elm$core$Maybe$Nothing, reactions: $elm$core$Maybe$Nothing, sender: '', share: $elm$core$Maybe$Nothing, timestamp: 0};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
-var $author$project$HttpExamples$init = function (_v0) {
+var $author$project$NebrasketballMoms$init = function (_v0) {
 	return _Utils_Tuple2(
-		{errorMessage: $elm$core$Maybe$Nothing, randomMessage: $author$project$HttpExamples$initRandomMessage},
+		{errorMessage: $elm$core$Maybe$Nothing, randomMessage: $author$project$NebrasketballMoms$initRandomMessage},
 		$elm$core$Platform$Cmd$none);
 };
 var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
-var $author$project$HttpExamples$buildErrorMessage = function (httpError) {
+var $author$project$NebrasketballMoms$Mixed = {$: 'Mixed'};
+var $author$project$NebrasketballMoms$PhotoMessage = {$: 'PhotoMessage'};
+var $author$project$NebrasketballMoms$ShareMessage = {$: 'ShareMessage'};
+var $author$project$NebrasketballMoms$TextMessage = {$: 'TextMessage'};
+var $elm$core$Basics$neq = _Utils_notEqual;
+var $author$project$NebrasketballMoms$messageHasPhoto = function (message) {
+	var _v0 = message.photo;
+	if (_v0.$ === 'Nothing') {
+		return false;
+	} else {
+		var something = _v0.a;
+		return (something.uri !== '') ? true : false;
+	}
+};
+var $author$project$NebrasketballMoms$messageIsShare = function (message) {
+	var _v0 = message.share;
+	if (_v0.$ === 'Nothing') {
+		return false;
+	} else {
+		var link = _v0.a;
+		return true;
+	}
+};
+var $elm$core$Basics$not = _Basics_not;
+var $author$project$NebrasketballMoms$messageIsOnlyText = function (message) {
+	return ((!$author$project$NebrasketballMoms$messageHasPhoto(message)) && (!$author$project$NebrasketballMoms$messageIsShare(message))) ? true : false;
+};
+var $author$project$NebrasketballMoms$assignMessageType = function (originalMessage) {
+	return $author$project$NebrasketballMoms$messageIsShare(originalMessage) ? _Utils_update(
+		originalMessage,
+		{messageType: $author$project$NebrasketballMoms$ShareMessage}) : ($author$project$NebrasketballMoms$messageHasPhoto(originalMessage) ? _Utils_update(
+		originalMessage,
+		{messageType: $author$project$NebrasketballMoms$PhotoMessage}) : ($author$project$NebrasketballMoms$messageIsOnlyText(originalMessage) ? _Utils_update(
+		originalMessage,
+		{messageType: $author$project$NebrasketballMoms$TextMessage}) : _Utils_update(
+		originalMessage,
+		{messageType: $author$project$NebrasketballMoms$Mixed})));
+};
+var $author$project$NebrasketballMoms$buildErrorMessage = function (httpError) {
 	switch (httpError.$) {
 		case 'BadUrl':
 			var message = httpError.a;
@@ -5360,7 +5399,7 @@ var $author$project$HttpExamples$buildErrorMessage = function (httpError) {
 			return message;
 	}
 };
-var $author$project$HttpExamples$DataReceived = function (a) {
+var $author$project$NebrasketballMoms$DataReceived = function (a) {
 	return {$: 'DataReceived', a: a};
 };
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
@@ -6150,15 +6189,16 @@ var $elm$http$Http$get = function (r) {
 	return $elm$http$Http$request(
 		{body: $elm$http$Http$emptyBody, expect: r.expect, headers: _List_Nil, method: 'GET', timeout: $elm$core$Maybe$Nothing, tracker: $elm$core$Maybe$Nothing, url: r.url});
 };
-var $author$project$HttpExamples$MessengerMessage = F6(
-	function (sender, content, timestamp, photos, share, reactions) {
-		return {content: content, photos: photos, reactions: reactions, sender: sender, share: share, timestamp: timestamp};
+var $author$project$NebrasketballMoms$MessengerMessage = F7(
+	function (sender, content, timestamp, photo, share, reactions, messageType) {
+		return {content: content, messageType: messageType, photo: photo, reactions: reactions, sender: sender, share: share, timestamp: timestamp};
 	});
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$string = _Json_decodeString;
-var $author$project$HttpExamples$contentDecoder = A2($elm$json$Json$Decode$field, 'Content', $elm$json$Json$Decode$string);
-var $elm$json$Json$Decode$map6 = _Json_map6;
-var $author$project$HttpExamples$Photo = function (uri) {
+var $author$project$NebrasketballMoms$contentDecoder = A2($elm$json$Json$Decode$field, 'Content', $elm$json$Json$Decode$string);
+var $elm$json$Json$Decode$map7 = _Json_map7;
+var $author$project$NebrasketballMoms$messageTypeDecoder = $elm$json$Json$Decode$succeed($author$project$NebrasketballMoms$Unknown);
+var $author$project$NebrasketballMoms$Photo = function (uri) {
 	return {uri: uri};
 };
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
@@ -6170,55 +6210,58 @@ var $elm$json$Json$Decode$maybe = function (decoder) {
 				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
 			]));
 };
-var $author$project$HttpExamples$photoDecoder = $elm$json$Json$Decode$maybe(
+var $author$project$NebrasketballMoms$photoDecoder = $elm$json$Json$Decode$maybe(
 	A2(
 		$elm$json$Json$Decode$map,
-		$author$project$HttpExamples$Photo,
+		$author$project$NebrasketballMoms$Photo,
 		A2(
 			$elm$json$Json$Decode$field,
 			'Photo',
 			A2($elm$json$Json$Decode$field, 'Uri', $elm$json$Json$Decode$string))));
 var $elm$json$Json$Decode$list = _Json_decodeList;
-var $author$project$HttpExamples$Reaction = F2(
+var $author$project$NebrasketballMoms$Reaction = F2(
 	function (reaction, actor) {
 		return {actor: actor, reaction: reaction};
 	});
-var $author$project$HttpExamples$reactionDecoder = A3(
+var $author$project$NebrasketballMoms$reactionDecoder = A3(
 	$elm$json$Json$Decode$map2,
-	$author$project$HttpExamples$Reaction,
+	$author$project$NebrasketballMoms$Reaction,
 	A2($elm$json$Json$Decode$field, 'Reaction', $elm$json$Json$Decode$string),
 	A2($elm$json$Json$Decode$field, 'Actor', $elm$json$Json$Decode$string));
-var $author$project$HttpExamples$reactionsDecoder = $elm$json$Json$Decode$maybe(
-	$elm$json$Json$Decode$list($author$project$HttpExamples$reactionDecoder));
-var $author$project$HttpExamples$senderDecoder = A2($elm$json$Json$Decode$field, 'Sender', $elm$json$Json$Decode$string);
-var $author$project$HttpExamples$Share = function (link) {
+var $author$project$NebrasketballMoms$reactionsDecoder = $elm$json$Json$Decode$maybe(
+	$elm$json$Json$Decode$list($author$project$NebrasketballMoms$reactionDecoder));
+var $author$project$NebrasketballMoms$senderDecoder = A2($elm$json$Json$Decode$field, 'Sender', $elm$json$Json$Decode$string);
+var $author$project$NebrasketballMoms$Share = function (link) {
 	return {link: link};
 };
-var $author$project$HttpExamples$shareDecoder = $elm$json$Json$Decode$maybe(
+var $author$project$NebrasketballMoms$shareDecoder = $elm$json$Json$Decode$maybe(
 	A2(
 		$elm$json$Json$Decode$map,
-		$author$project$HttpExamples$Share,
-		A2($elm$json$Json$Decode$field, 'link', $elm$json$Json$Decode$string)));
+		$author$project$NebrasketballMoms$Share,
+		A2($elm$json$Json$Decode$field, 'Link', $elm$json$Json$Decode$string)));
 var $elm$json$Json$Decode$int = _Json_decodeInt;
-var $author$project$HttpExamples$timestampDecoder = A2($elm$json$Json$Decode$field, 'Timestamp', $elm$json$Json$Decode$int);
-var $author$project$HttpExamples$messageDecoder = A7($elm$json$Json$Decode$map6, $author$project$HttpExamples$MessengerMessage, $author$project$HttpExamples$senderDecoder, $author$project$HttpExamples$contentDecoder, $author$project$HttpExamples$timestampDecoder, $author$project$HttpExamples$photoDecoder, $author$project$HttpExamples$shareDecoder, $author$project$HttpExamples$reactionsDecoder);
-var $author$project$HttpExamples$randomUrl = '/random';
-var $author$project$HttpExamples$getRandomMessage = $elm$http$Http$get(
+var $author$project$NebrasketballMoms$timestampDecoder = A2($elm$json$Json$Decode$field, 'Timestamp', $elm$json$Json$Decode$int);
+var $author$project$NebrasketballMoms$messageDecoder = A8($elm$json$Json$Decode$map7, $author$project$NebrasketballMoms$MessengerMessage, $author$project$NebrasketballMoms$senderDecoder, $author$project$NebrasketballMoms$contentDecoder, $author$project$NebrasketballMoms$timestampDecoder, $author$project$NebrasketballMoms$photoDecoder, $author$project$NebrasketballMoms$shareDecoder, $author$project$NebrasketballMoms$reactionsDecoder, $author$project$NebrasketballMoms$messageTypeDecoder);
+var $author$project$NebrasketballMoms$randomUrl = '/random';
+var $author$project$NebrasketballMoms$getRandomMessage = $elm$http$Http$get(
 	{
-		expect: A2($elm$http$Http$expectJson, $author$project$HttpExamples$DataReceived, $author$project$HttpExamples$messageDecoder),
-		url: $author$project$HttpExamples$randomUrl
+		expect: A2($elm$http$Http$expectJson, $author$project$NebrasketballMoms$DataReceived, $author$project$NebrasketballMoms$messageDecoder),
+		url: $author$project$NebrasketballMoms$randomUrl
 	});
-var $author$project$HttpExamples$update = F2(
+var $author$project$NebrasketballMoms$update = F2(
 	function (msg, model) {
 		if (msg.$ === 'SendHttpRequest') {
-			return _Utils_Tuple2(model, $author$project$HttpExamples$getRandomMessage);
+			return _Utils_Tuple2(model, $author$project$NebrasketballMoms$getRandomMessage);
 		} else {
 			if (msg.a.$ === 'Ok') {
 				var messengerMessage = msg.a.a;
 				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{errorMessage: $elm$core$Maybe$Nothing, randomMessage: messengerMessage}),
+					function () {
+						var messageWithType = $author$project$NebrasketballMoms$assignMessageType(messengerMessage);
+						return _Utils_update(
+							model,
+							{errorMessage: $elm$core$Maybe$Nothing, randomMessage: messageWithType});
+					}(),
 					$elm$core$Platform$Cmd$none);
 			} else {
 				var httpError = msg.a.a;
@@ -6227,35 +6270,16 @@ var $author$project$HttpExamples$update = F2(
 						model,
 						{
 							errorMessage: $elm$core$Maybe$Just(
-								$author$project$HttpExamples$buildErrorMessage(httpError))
+								$author$project$NebrasketballMoms$buildErrorMessage(httpError))
 						}),
 					$elm$core$Platform$Cmd$none);
 			}
 		}
 	});
+var $author$project$NebrasketballMoms$SendHttpRequest = {$: 'SendHttpRequest'};
+var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$html$Html$h1 = _VirtualDom_node('h1');
-var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
-var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
-var $elm$html$Html$h2 = _VirtualDom_node('h2');
-var $author$project$HttpExamples$viewError = function (error) {
-	return A2(
-		$elm$html$Html$div,
-		_List_Nil,
-		_List_fromArray(
-			[
-				A2(
-				$elm$html$Html$h2,
-				_List_Nil,
-				_List_fromArray(
-					[
-						$elm$html$Html$text('Error: ' + error)
-					]))
-			]));
-};
-var $author$project$HttpExamples$SendHttpRequest = {$: 'SendHttpRequest'};
-var $elm$html$Html$button = _VirtualDom_node('button');
-var $elm$html$Html$h4 = _VirtualDom_node('h4');
 var $elm$virtual_dom$VirtualDom$Normal = function (a) {
 	return {$: 'Normal', a: a};
 };
@@ -6273,8 +6297,26 @@ var $elm$html$Html$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
+var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
+var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
+var $elm$html$Html$h2 = _VirtualDom_node('h2');
+var $author$project$NebrasketballMoms$viewError = function (error) {
+	return A2(
+		$elm$html$Html$div,
+		_List_Nil,
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$h2,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text('Error: ' + error)
+					]))
+			]));
+};
+var $elm$html$Html$h4 = _VirtualDom_node('h4');
 var $elm$html$Html$img = _VirtualDom_node('img');
-var $elm$core$Basics$neq = _Utils_notEqual;
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -6289,11 +6331,12 @@ var $elm$html$Html$Attributes$src = function (url) {
 		'src',
 		_VirtualDom_noJavaScriptOrHtmlUri(url));
 };
-var $author$project$HttpExamples$viewPhotos = function (maybePhoto) {
-	if (maybePhoto.$ === 'Nothing') {
-		return $elm$html$Html$text('No photo');
+var $author$project$NebrasketballMoms$renderMessagePhoto = function (message) {
+	var _v0 = message.photo;
+	if (_v0.$ === 'Nothing') {
+		return $elm$html$Html$text('');
 	} else {
-		var aPhoto = maybePhoto.a;
+		var aPhoto = _v0.a;
 		var prependURL = 'https://storage.cloud.google.com/directed-curve-263321.appspot.com/';
 		return (aPhoto.uri !== '') ? A2(
 			$elm$html$Html$img,
@@ -6302,52 +6345,98 @@ var $author$project$HttpExamples$viewPhotos = function (maybePhoto) {
 					$elm$html$Html$Attributes$src(
 					_Utils_ap(prependURL, aPhoto.uri))
 				]),
-			_List_Nil) : $elm$html$Html$text('No Photo');
+			_List_Nil) : $elm$html$Html$text('Error -- Expected a photo URI here!');
 	}
 };
-var $author$project$HttpExamples$viewRandomMessage = function (randomMessage) {
+var $elm$html$Html$a = _VirtualDom_node('a');
+var $author$project$NebrasketballMoms$renderMessageShare = function (message) {
+	var _v0 = message.share;
+	if (_v0.$ === 'Nothing') {
+		return $elm$html$Html$text('');
+	} else {
+		var share = _v0.a;
+		return A2(
+			$elm$html$Html$div,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$h4,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text(share.link + ' sent a link')
+						])),
+					A2(
+					$elm$html$Html$a,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$src(message.content)
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(message.content)
+						]))
+				]));
+	}
+};
+var $author$project$NebrasketballMoms$renderMessageText = function (message) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
 		_List_fromArray(
 			[
 				A2(
-				$elm$html$Html$h2,
-				_List_Nil,
-				_List_fromArray(
-					[
-						$elm$html$Html$text('Header')
-					])),
-				A2(
 				$elm$html$Html$h4,
 				_List_Nil,
 				_List_fromArray(
 					[
-						$elm$html$Html$text(randomMessage.sender + (' : ' + randomMessage.content))
-					])),
-				$author$project$HttpExamples$viewPhotos(randomMessage.photos),
-				A2(
-				$elm$html$Html$button,
-				_List_fromArray(
-					[
-						$elm$html$Html$Events$onClick($author$project$HttpExamples$SendHttpRequest)
-					]),
-				_List_fromArray(
-					[
-						$elm$html$Html$text('Random Message')
+						$elm$html$Html$text(message.sender + (': ' + message.content))
 					]))
 			]));
 };
-var $author$project$HttpExamples$viewMessageOrError = function (model) {
+var $author$project$NebrasketballMoms$viewRandomMessage = function (randomMessage) {
+	var _v0 = randomMessage.messageType;
+	switch (_v0.$) {
+		case 'PhotoMessage':
+			return $author$project$NebrasketballMoms$renderMessagePhoto(randomMessage);
+		case 'ShareMessage':
+			return $author$project$NebrasketballMoms$renderMessageShare(randomMessage);
+		case 'TextMessage':
+			return $author$project$NebrasketballMoms$renderMessageText(randomMessage);
+		default:
+			return A2(
+				$elm$html$Html$div,
+				_List_Nil,
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$h2,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text('UnknownType')
+							])),
+						A2(
+						$elm$html$Html$h4,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text(randomMessage.sender + (' : ' + randomMessage.content))
+							]))
+					]));
+	}
+};
+var $author$project$NebrasketballMoms$viewMessageOrError = function (model) {
 	var _v0 = model.errorMessage;
 	if (_v0.$ === 'Just') {
 		var error = _v0.a;
-		return $author$project$HttpExamples$viewError(error);
+		return $author$project$NebrasketballMoms$viewError(error);
 	} else {
-		return $author$project$HttpExamples$viewRandomMessage(model.randomMessage);
+		return $author$project$NebrasketballMoms$viewRandomMessage(model.randomMessage);
 	}
 };
-var $author$project$HttpExamples$view = function (model) {
+var $author$project$NebrasketballMoms$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
@@ -6360,22 +6449,32 @@ var $author$project$HttpExamples$view = function (model) {
 					[
 						$elm$html$Html$text('Random Message')
 					])),
-				$author$project$HttpExamples$viewMessageOrError(model)
+				$author$project$NebrasketballMoms$viewMessageOrError(model),
+				A2(
+				$elm$html$Html$button,
+				_List_fromArray(
+					[
+						$elm$html$Html$Events$onClick($author$project$NebrasketballMoms$SendHttpRequest)
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text('Random Message')
+					]))
 			]));
 };
-var $author$project$HttpExamples$main = $elm$browser$Browser$element(
+var $author$project$NebrasketballMoms$main = $elm$browser$Browser$element(
 	{
-		init: $author$project$HttpExamples$init,
+		init: $author$project$NebrasketballMoms$init,
 		subscriptions: function (_v0) {
 			return $elm$core$Platform$Sub$none;
 		},
-		update: $author$project$HttpExamples$update,
-		view: $author$project$HttpExamples$view
+		update: $author$project$NebrasketballMoms$update,
+		view: $author$project$NebrasketballMoms$view
 	});
-_Platform_export({'HttpExamples':{'init':$author$project$HttpExamples$main(
+_Platform_export({'NebrasketballMoms':{'init':$author$project$NebrasketballMoms$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
 
-  var app = Elm.HttpExamples.init({ node: document.getElementById("elm") });
+  var app = Elm.NebrasketballMoms.init({ node: document.getElementById("elm") });
 }
 catch (e)
 {

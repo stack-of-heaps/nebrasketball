@@ -1,4 +1,4 @@
-module HttpExamples exposing (main)
+module NebrasketballMoms exposing (main)
 
 import Http exposing (..)
 import Html exposing (..)
@@ -21,14 +21,17 @@ type alias Reaction =
     actor : String
  }
 
+type MessageType = TextMessage | PhotoMessage | ShareMessage | Unknown | Mixed
+
 type alias MessengerMessage =
   {
     sender : String,
     content : String,
     timestamp: Int,
-    photos : Maybe Photo,
+    photo : Maybe Photo,
     share : Maybe Share,
-    reactions : Maybe (List Reaction)
+    reactions : Maybe (List Reaction),
+    messageType: MessageType
   }
 
 type alias Model = 
@@ -41,7 +44,8 @@ view : Model -> Html Msg
 view model = div [] 
     [
         h1 [] [ text "Random Message" ],
-        viewMessageOrError model
+        viewMessageOrError model,
+        button [ onClick SendHttpRequest ] [text "Random Message"]
     ]
 
 viewError : String -> Html Msg
@@ -60,25 +64,79 @@ viewMessageOrError model =
         Nothing ->
             viewRandomMessage model.randomMessage
 
-viewPhotos : Maybe Photo -> Html Msg
-viewPhotos maybePhoto =
+messageIsLink : MessengerMessage -> Bool
+messageIsLink message =
+    if String.contains message.content "http" then True else False
 
-        case maybePhoto of
-            Nothing -> Html.text "No photo"
+renderMessageLink : MessengerMessage -> Html Msg
+renderMessageLink message =
+    div [] 
+    [ 
+        h4 [] [ text (message.sender ++ " sent a link") ],
+        a [src message.content] [ text message.content ]
+    ]
+
+messageIsShare : MessengerMessage -> Bool
+messageIsShare message = 
+    case message.share of
+       Nothing -> False
+       Just link -> True
+
+renderMessageShare : MessengerMessage -> Html Msg
+renderMessageShare message =
+    case message.share of
+       Nothing -> Html.text ""
+       Just share ->
+            div [] 
+            [ 
+                h4 [] [ text (share.link ++ " sent a link") ],
+                a [src message.content] [ text message.content ]
+            ]
+
+messageHasPhoto : MessengerMessage -> Bool
+messageHasPhoto message = 
+    case message.photo of
+       Nothing -> False
+       Just something -> if something.uri /= "" then True else False
+
+renderMessagePhoto : MessengerMessage -> Html Msg
+renderMessagePhoto message =
+        case message.photo of
+            Nothing -> Html.text ""
             Just aPhoto -> 
                 let prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/" in
-                    if aPhoto.uri /= "" then img [ src ( prependURL ++ aPhoto.uri ) ] [] else Html.text "No Photo"
+                    if aPhoto.uri /= "" then (img [ src ( prependURL ++ aPhoto.uri ) ] [] ) else Html.text "Error -- Expected a photo URI here!"
 
+messageIsOnlyText : MessengerMessage -> Bool
+messageIsOnlyText message =
+    if not (messageHasPhoto message) && not (messageIsShare message) then True else False
+
+renderMessageText : MessengerMessage -> Html Msg
+renderMessageText message = 
+    div []
+    [
+        h4 [] [text (message.sender ++ ": " ++ message.content) ]
+    ]
+
+assignMessageType : MessengerMessage -> MessengerMessage
+assignMessageType originalMessage =
+    if messageIsShare originalMessage then { originalMessage | messageType = ShareMessage }
+    else if messageHasPhoto originalMessage then { originalMessage | messageType = PhotoMessage }
+    else if messageIsOnlyText originalMessage then { originalMessage | messageType = TextMessage }
+    else { originalMessage | messageType = Mixed }
 
 viewRandomMessage : MessengerMessage -> Html Msg
 viewRandomMessage randomMessage =
-    div []
-    [
-        h2 [] [text "Header"],
-        h4 [] [text (randomMessage.sender ++ " : " ++ randomMessage.content) ],
-        viewPhotos randomMessage.photos,
-        button [ onClick SendHttpRequest ] [text "Random Message"]
-    ]
+    case randomMessage.messageType of 
+        PhotoMessage -> renderMessagePhoto randomMessage
+        ShareMessage -> renderMessageShare randomMessage
+        TextMessage -> renderMessageText randomMessage
+        _ ->
+            div []
+            [
+                h2 [] [text "UnknownType"],
+                h4 [] [text (randomMessage.sender ++ " : " ++ randomMessage.content) ]
+            ]
 
 type Msg
     = SendHttpRequest
@@ -113,7 +171,7 @@ shareDecoder : Decoder ( Maybe Share )
 shareDecoder =
     Decode.maybe ( 
         Decode.map Share
-            ( field "link" string ) )
+            ( field "Link" string ) )
 
 reactionDecoder : Decoder Reaction
 reactionDecoder =
@@ -125,22 +183,32 @@ reactionsDecoder : Decoder ( Maybe ( List Reaction ))
 reactionsDecoder = 
     Decode.maybe (Decode.list reactionDecoder)
 
+messageTypeDecoder : Decoder MessageType
+messageTypeDecoder =
+    Decode.succeed Unknown
+
 messageDecoder : Decoder MessengerMessage
 messageDecoder = 
-  Decode.map6 MessengerMessage
+  Decode.map7 MessengerMessage
     senderDecoder
     contentDecoder
     timestampDecoder
     photoDecoder
     shareDecoder
     reactionsDecoder
+    messageTypeDecoder
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
     case msg of
         SendHttpRequest -> (model, getRandomMessage)
         
-        DataReceived (Ok messengerMessage) -> ( {model | randomMessage = messengerMessage, errorMessage = Nothing }, Cmd.none )
+        DataReceived (Ok messengerMessage) -> ( 
+            let 
+                messageWithType = assignMessageType messengerMessage 
+            in
+                {model | randomMessage = messageWithType, errorMessage = Nothing }, Cmd.none )
+        
         DataReceived (Err httpError) -> ( { model | errorMessage = Just (buildErrorMessage httpError )}, Cmd.none )
 
 buildErrorMessage : Http.Error -> String
@@ -167,9 +235,10 @@ initRandomMessage =
         sender = "",
         content = "",
         timestamp = 0,
-        photos = Nothing,
+        photo = Nothing,
         share = Nothing,
-        reactions = Nothing
+        reactions = Nothing,
+        messageType = Unknown
     }
 
 init : () -> ( Model, Cmd Msg )
