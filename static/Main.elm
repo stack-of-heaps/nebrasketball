@@ -7,21 +7,19 @@ import Html.Attributes exposing (src)
 import Json.Decode as Decode exposing (Decoder, decodeString, field, int, list, map3, string)
 import Browser
 
-type alias Photo =
-  { 
-    uri : String
-  }
+randomUrl : String
+randomUrl =
+    "/random"
+
+type alias Photo = { uri : String }
+
+type alias Share = { link : String }
 
 type alias Reaction =
  {
     reaction : String,
     actor : String
  }
-
-type alias Share =
-  {
-    link : String
-  }
 
 type alias MessengerMessage =
   {
@@ -44,6 +42,13 @@ view model = div []
     [
         h1 [] [ text "Random Message" ],
         viewMessageOrError model
+    ]
+
+viewError : String -> Html Msg
+viewError error = 
+    div []
+    [
+        h2 [] [text ("Error: " ++ error) ]
     ]
 
 viewMessageOrError : Model -> Html Msg
@@ -75,20 +80,9 @@ viewRandomMessage randomMessage =
         button [ onClick SendHttpRequest ] [text "Random Message"]
     ]
 
-viewError : String -> Html Msg
-viewError error = 
-    div []
-    [
-        h2 [] [text ("Error: " ++ error) ]
-    ]
-
 type Msg
     = SendHttpRequest
     | DataReceived (Result Http.Error MessengerMessage)
-
-randomUrl : String
-randomUrl =
-    "/random"
 
 getRandomMessage : Cmd Msg
 getRandomMessage =
@@ -114,7 +108,6 @@ photoDecoder =
         Decode.maybe ( 
             Decode.map Photo ( 
                 field "Photo" ( field "Uri" string ) ) )
-        
 
 shareDecoder : Decoder ( Maybe Share )
 shareDecoder =
@@ -131,7 +124,6 @@ reactionDecoder =
 reactionsDecoder : Decoder ( Maybe ( List Reaction ))
 reactionsDecoder = 
     Decode.maybe (Decode.list reactionDecoder)
-
 
 messageDecoder : Decoder MessengerMessage
 messageDecoder = 
@@ -169,16 +161,6 @@ buildErrorMessage httpError =
         Http.BadBody message ->
             message
 
-
-initReaction : Reaction
-initReaction = 
-    {
-        reaction = "",
-        actor = ""
-    }
-
-initReactions : (List Reaction)
-initReactions = [initReaction]
 initRandomMessage : MessengerMessage
 initRandomMessage = 
     {
@@ -197,7 +179,6 @@ init _ =
       }
     , Cmd.none
     )
-
 
 main : Program () Model Msg
 main =
