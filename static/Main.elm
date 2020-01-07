@@ -28,8 +28,8 @@ type alias MessengerMessage =
     sender : String,
     content : String,
     timestamp: Int,
-    photos : Maybe (List String),
-    shares : Maybe (List String),
+    photos : Maybe Photo,
+    share : Maybe Share,
     reactions : Maybe (List Reaction)
   }
 
@@ -55,14 +55,24 @@ viewMessageOrError model =
         Nothing ->
             viewRandomMessage model.randomMessage
 
+viewPhotos : Maybe Photo -> Html Msg
+viewPhotos maybePhoto =
+
+        case maybePhoto of
+            Nothing -> Html.text "No photo"
+            Just aPhoto -> 
+                let prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/" in
+                    if aPhoto.uri /= "" then img [ src ( prependURL ++ aPhoto.uri ) ] [] else Html.text "No Photo"
+
+
 viewRandomMessage : MessengerMessage -> Html Msg
 viewRandomMessage randomMessage =
     div []
     [
         h2 [] [text "Header"],
         h4 [] [text (randomMessage.sender ++ " : " ++ randomMessage.content) ],
-        button [ onClick SendHttpRequest ]
-            [text "Random Message"]
+        viewPhotos randomMessage.photos,
+        button [ onClick SendHttpRequest ] [text "Random Message"]
     ]
 
 viewError : String -> Html Msg
@@ -99,13 +109,18 @@ contentDecoder : Decoder String
 contentDecoder =
     field "Content" string
 
-photoDecoder : Decoder String
+photoDecoder : Decoder ( Maybe Photo )
 photoDecoder =
-    (field "Photos" (field "Uri" string))
+        Decode.maybe ( 
+            Decode.map Photo ( 
+                field "Photo" ( field "Uri" string ) ) )
+        
 
-photosDecoder : Decoder (Maybe (List String))
-photosDecoder =
-  Decode.maybe (list photoDecoder)
+shareDecoder : Decoder ( Maybe Share )
+shareDecoder =
+    Decode.maybe ( 
+        Decode.map Share
+            ( field "link" string ) )
 
 reactionDecoder : Decoder Reaction
 reactionDecoder =
@@ -113,18 +128,9 @@ reactionDecoder =
     (field "Reaction" string)
     (field "Actor" string)
 
-reactionsDecoder : Decoder (Maybe (List Reaction))
-reactionsDecoder =
-  Decode.maybe (Decode.list reactionDecoder)
-
-shareDecoder : Decoder String 
-shareDecoder =
-    (field "link" string)
-
-sharesDecoder : Decoder (Maybe (List String))
-sharesDecoder =
-  Decode.maybe (Decode.list shareDecoder)
-
+reactionsDecoder : Decoder ( Maybe ( List Reaction ))
+reactionsDecoder = 
+    Decode.maybe (Decode.list reactionDecoder)
 
 
 messageDecoder : Decoder MessengerMessage
@@ -133,8 +139,8 @@ messageDecoder =
     senderDecoder
     contentDecoder
     timestampDecoder
-    photosDecoder
-    sharesDecoder
+    photoDecoder
+    shareDecoder
     reactionsDecoder
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -180,7 +186,7 @@ initRandomMessage =
         content = "",
         timestamp = 0,
         photos = Nothing,
-        shares = Nothing,
+        share = Nothing,
         reactions = Nothing
     }
 

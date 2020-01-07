@@ -5333,7 +5333,7 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$element = _Browser_element;
-var $author$project$HttpExamples$initRandomMessage = {content: '', photos: $elm$core$Maybe$Nothing, reactions: $elm$core$Maybe$Nothing, sender: '', shares: $elm$core$Maybe$Nothing, timestamp: 0};
+var $author$project$HttpExamples$initRandomMessage = {content: '', photos: $elm$core$Maybe$Nothing, reactions: $elm$core$Maybe$Nothing, sender: '', share: $elm$core$Maybe$Nothing, timestamp: 0};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$HttpExamples$init = function (_v0) {
@@ -6151,14 +6151,16 @@ var $elm$http$Http$get = function (r) {
 		{body: $elm$http$Http$emptyBody, expect: r.expect, headers: _List_Nil, method: 'GET', timeout: $elm$core$Maybe$Nothing, tracker: $elm$core$Maybe$Nothing, url: r.url});
 };
 var $author$project$HttpExamples$MessengerMessage = F6(
-	function (sender, content, timestamp, photos, shares, reactions) {
-		return {content: content, photos: photos, reactions: reactions, sender: sender, shares: shares, timestamp: timestamp};
+	function (sender, content, timestamp, photos, share, reactions) {
+		return {content: content, photos: photos, reactions: reactions, sender: sender, share: share, timestamp: timestamp};
 	});
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$HttpExamples$contentDecoder = A2($elm$json$Json$Decode$field, 'Content', $elm$json$Json$Decode$string);
 var $elm$json$Json$Decode$map6 = _Json_map6;
-var $elm$json$Json$Decode$list = _Json_decodeList;
+var $author$project$HttpExamples$Photo = function (uri) {
+	return {uri: uri};
+};
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
@@ -6168,12 +6170,15 @@ var $elm$json$Json$Decode$maybe = function (decoder) {
 				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
 			]));
 };
-var $author$project$HttpExamples$photoDecoder = A2(
-	$elm$json$Json$Decode$field,
-	'Photos',
-	A2($elm$json$Json$Decode$field, 'Uri', $elm$json$Json$Decode$string));
-var $author$project$HttpExamples$photosDecoder = $elm$json$Json$Decode$maybe(
-	$elm$json$Json$Decode$list($author$project$HttpExamples$photoDecoder));
+var $author$project$HttpExamples$photoDecoder = $elm$json$Json$Decode$maybe(
+	A2(
+		$elm$json$Json$Decode$map,
+		$author$project$HttpExamples$Photo,
+		A2(
+			$elm$json$Json$Decode$field,
+			'Photo',
+			A2($elm$json$Json$Decode$field, 'Uri', $elm$json$Json$Decode$string))));
+var $elm$json$Json$Decode$list = _Json_decodeList;
 var $author$project$HttpExamples$Reaction = F2(
 	function (reaction, actor) {
 		return {actor: actor, reaction: reaction};
@@ -6186,12 +6191,17 @@ var $author$project$HttpExamples$reactionDecoder = A3(
 var $author$project$HttpExamples$reactionsDecoder = $elm$json$Json$Decode$maybe(
 	$elm$json$Json$Decode$list($author$project$HttpExamples$reactionDecoder));
 var $author$project$HttpExamples$senderDecoder = A2($elm$json$Json$Decode$field, 'Sender', $elm$json$Json$Decode$string);
-var $author$project$HttpExamples$shareDecoder = A2($elm$json$Json$Decode$field, 'link', $elm$json$Json$Decode$string);
-var $author$project$HttpExamples$sharesDecoder = $elm$json$Json$Decode$maybe(
-	$elm$json$Json$Decode$list($author$project$HttpExamples$shareDecoder));
+var $author$project$HttpExamples$Share = function (link) {
+	return {link: link};
+};
+var $author$project$HttpExamples$shareDecoder = $elm$json$Json$Decode$maybe(
+	A2(
+		$elm$json$Json$Decode$map,
+		$author$project$HttpExamples$Share,
+		A2($elm$json$Json$Decode$field, 'link', $elm$json$Json$Decode$string)));
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $author$project$HttpExamples$timestampDecoder = A2($elm$json$Json$Decode$field, 'Timestamp', $elm$json$Json$Decode$int);
-var $author$project$HttpExamples$messageDecoder = A7($elm$json$Json$Decode$map6, $author$project$HttpExamples$MessengerMessage, $author$project$HttpExamples$senderDecoder, $author$project$HttpExamples$contentDecoder, $author$project$HttpExamples$timestampDecoder, $author$project$HttpExamples$photosDecoder, $author$project$HttpExamples$sharesDecoder, $author$project$HttpExamples$reactionsDecoder);
+var $author$project$HttpExamples$messageDecoder = A7($elm$json$Json$Decode$map6, $author$project$HttpExamples$MessengerMessage, $author$project$HttpExamples$senderDecoder, $author$project$HttpExamples$contentDecoder, $author$project$HttpExamples$timestampDecoder, $author$project$HttpExamples$photoDecoder, $author$project$HttpExamples$shareDecoder, $author$project$HttpExamples$reactionsDecoder);
 var $author$project$HttpExamples$randomUrl = '/random';
 var $author$project$HttpExamples$getRandomMessage = $elm$http$Http$get(
 	{
@@ -6263,6 +6273,38 @@ var $elm$html$Html$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
+var $elm$html$Html$img = _VirtualDom_node('img');
+var $elm$core$Basics$neq = _Utils_notEqual;
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $elm$html$Html$Attributes$stringProperty = F2(
+	function (key, string) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$string(string));
+	});
+var $elm$html$Html$Attributes$src = function (url) {
+	return A2(
+		$elm$html$Html$Attributes$stringProperty,
+		'src',
+		_VirtualDom_noJavaScriptOrHtmlUri(url));
+};
+var $author$project$HttpExamples$viewPhotos = function (maybePhoto) {
+	if (maybePhoto.$ === 'Nothing') {
+		return $elm$html$Html$text('No photo');
+	} else {
+		var aPhoto = maybePhoto.a;
+		var prependURL = 'https://storage.cloud.google.com/directed-curve-263321.appspot.com/';
+		return (aPhoto.uri !== '') ? A2(
+			$elm$html$Html$img,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$src(
+					_Utils_ap(prependURL, aPhoto.uri))
+				]),
+			_List_Nil) : $elm$html$Html$text('No Photo');
+	}
+};
 var $author$project$HttpExamples$viewRandomMessage = function (randomMessage) {
 	return A2(
 		$elm$html$Html$div,
@@ -6281,8 +6323,9 @@ var $author$project$HttpExamples$viewRandomMessage = function (randomMessage) {
 				_List_Nil,
 				_List_fromArray(
 					[
-						$elm$html$Html$text(randomMessage.sender + (':' + randomMessage.content))
+						$elm$html$Html$text(randomMessage.sender + (' : ' + randomMessage.content))
 					])),
+				$author$project$HttpExamples$viewPhotos(randomMessage.photos),
 				A2(
 				$elm$html$Html$button,
 				_List_fromArray(

@@ -53,6 +53,16 @@ type Message struct {
 	Type      string
 }
 
+type ReturnMessage struct {
+	Sender    string
+	Timestamp int
+	Content   string
+	Photo     Photo
+	Reactions []Reaction
+	Share     Share
+	Type      string
+}
+
 type ServerResponse struct {
 	MessageResults Messages
 	Empty          bool
@@ -91,17 +101,39 @@ func randomMessage(s *Server) http.Handler {
 			if cursorErr != nil {
 				log.Fatal("Error in random() cursor")
 			}
+
+			fmt.Println("Result: ", result)
 		}
 
 		if checkForVideo(result) {
 			randomMessage(s)
 		}
 
-		result.Photos = handleMediaPath(result.Photos)
-		jsonResult, _ := json.Marshal(result)
+		retMessage := craftReturnMessage(result)
+
+		jsonResult, _ := json.Marshal(retMessage)
 
 		w.Write(jsonResult)
 	})
+}
+
+func craftReturnMessage(objIn Message) ReturnMessage {
+
+	objIn.Photos = handleMediaPath(objIn.Photos)
+
+	newMessage := ReturnMessage{
+		Sender:    objIn.Sender,
+		Content:   objIn.Content,
+		Timestamp: objIn.Timestamp,
+		Share:     objIn.Share,
+		Reactions: objIn.Reactions,
+	}
+
+	if len(objIn.Photos) > 0 {
+		newMessage.Photo = objIn.Photos[0]
+	}
+
+	return newMessage
 }
 
 func capitalizeName(name string) string {
@@ -117,6 +149,8 @@ func checkForVideo(obj Message) bool {
 
 	path := obj.Photos[0].Uri
 	ext := ".mp4"
+	fmt.Println("Path: ", path)
+	fmt.Println(strings.Contains(path, ext))
 	return strings.Contains(path, ext)
 }
 
@@ -234,8 +268,8 @@ func getPort() string {
 
 func main() {
 
-	mongoURI := "mongodb://localhost:27017"
-	//mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
+	//mongoURI := "mongodb://localhost:27017"
+	mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
 	//client, cancel := mongolib.ConnectToMongoDB(mongoURI)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
