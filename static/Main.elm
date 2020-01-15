@@ -3,9 +3,10 @@ module NebrasketballMoms exposing (main)
 import Http exposing (..)
 import Html exposing (..)
 import Html.Events exposing (onClick)
-import Html.Attributes exposing (src)
+import Html.Attributes exposing (src, class, href)
 import Json.Decode as Decode exposing (Decoder, decodeString, field, int, list, map3, string)
 import Browser
+import Css exposing (..)
 
 randomUrl : String
 randomUrl =
@@ -41,11 +42,13 @@ type alias Model =
     }
 
 view : Model -> Html Msg
-view model = div [] 
+view model = div [class "mainFlexDiv"] 
     [
-        h1 [] [ text "Random Message" ],
-        viewMessageOrError model,
-        button [ onClick SendHttpRequest ] [text "Random Message"]
+        button [ onClick SendHttpRequest ] [text "Random Message"],
+        div [class "subFlexDiv"]
+        [
+            viewMessageOrError model
+        ]
     ]
 
 viewError : String -> Html Msg
@@ -63,10 +66,6 @@ viewMessageOrError model =
 
         Nothing ->
             viewRandomMessage model.randomMessage
-
-messageIsLink : MessengerMessage -> Bool
-messageIsLink message =
-    if String.contains message.content "http" then True else False
 
 renderMessageLink : MessengerMessage -> Html Msg
 renderMessageLink message =
@@ -104,19 +103,59 @@ renderMessagePhoto message =
         case message.photo of
             Nothing -> Html.text ""
             Just aPhoto -> 
-                let prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/" in
-                    if aPhoto.uri /= "" then (img [ src ( prependURL ++ aPhoto.uri ) ] [] ) else Html.text "Error -- Expected a photo URI here!"
+                let 
+                    prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/"
+                    imgURL = prependURL ++ aPhoto.uri
+                in
+                    if 
+                        aPhoto.uri /= "" 
+                    then 
+                    div [] 
+                        [
+                            a [ href imgURL ] [img [src imgURL] []] 
+                        ]
+                    else 
+                        Html.text "Error -- Expected a photo URI here!"
 
 messageIsOnlyText : MessengerMessage -> Bool
 messageIsOnlyText message =
-    if not (messageHasPhoto message) && not (messageIsShare message) then True else False
+    if not (messageHasPhoto message) && not (messageIsShare message) then True else False 
 
+messageContainsLink : String -> Bool
+messageContainsLink message =
+    String.contains "http" message
+ 
 renderMessageText : MessengerMessage -> Html Msg
 renderMessageText message = 
-    div []
-    [
-        h4 [] [text (message.sender ++ ": " ++ message.content) ]
-    ]
+    if 
+        messageContainsLink message.content 
+    then
+        let 
+            messageWords = String.words message.content
+            theLinkAsList = List.head (List.filter (\word -> String.contains "http" word) messageWords)
+            theLink = case theLinkAsList of
+                Nothing -> ""
+                Just aLink -> aLink
+            linkIndex = Maybe.withDefault 0 (List.head (String.indexes "http" message.content))
+            messageLeftOfLink = String.slice 0 linkIndex message.content
+            messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length message.content) message.content
+        in
+            div []
+            [
+                p [class "messageSender"] [text (message.sender ++ ": ")],
+                span [] 
+                [
+                    p [class "messageText"] [text messageLeftOfLink],
+                    a [href theLink] [text theLink],
+                    p [class "messageText"] [text messageRightOfLink]
+                ]
+            ]
+    else
+        div []
+        [
+            p [class "messageSender"] [text message.sender],
+            p [class "messageText"] [text message.content]
+        ]
 
 assignMessageType : MessengerMessage -> MessengerMessage
 assignMessageType originalMessage =
@@ -134,8 +173,6 @@ viewRandomMessage randomMessage =
         _ ->
             div []
             [
-                h2 [] [text "UnknownType"],
-                h4 [] [text (randomMessage.sender ++ " : " ++ randomMessage.content) ]
             ]
 
 type Msg
@@ -155,7 +192,7 @@ senderDecoder =
 
 timestampDecoder : Decoder Int
 timestampDecoder =
-    field "Timestamp" int
+    field "Timestamp" Decode.int
 
 contentDecoder : Decoder String
 contentDecoder =

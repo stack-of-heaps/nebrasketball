@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>NebrasketballMoms</title>
   <style>body { padding: 0; margin: 0; }</style>
+  <link rel="stylesheet" href="css/main.css">
 </head>
 
 <body>
@@ -6278,8 +6279,16 @@ var $author$project$NebrasketballMoms$update = F2(
 	});
 var $author$project$NebrasketballMoms$SendHttpRequest = {$: 'SendHttpRequest'};
 var $elm$html$Html$button = _VirtualDom_node('button');
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $elm$html$Html$Attributes$stringProperty = F2(
+	function (key, string) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$string(string));
+	});
+var $elm$html$Html$Attributes$class = $elm$html$Html$Attributes$stringProperty('className');
 var $elm$html$Html$div = _VirtualDom_node('div');
-var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$virtual_dom$VirtualDom$Normal = function (a) {
 	return {$: 'Normal', a: a};
 };
@@ -6315,16 +6324,14 @@ var $author$project$NebrasketballMoms$viewError = function (error) {
 					]))
 			]));
 };
-var $elm$html$Html$h4 = _VirtualDom_node('h4');
+var $elm$html$Html$a = _VirtualDom_node('a');
+var $elm$html$Html$Attributes$href = function (url) {
+	return A2(
+		$elm$html$Html$Attributes$stringProperty,
+		'href',
+		_VirtualDom_noJavaScriptUri(url));
+};
 var $elm$html$Html$img = _VirtualDom_node('img');
-var $elm$json$Json$Encode$string = _Json_wrap;
-var $elm$html$Html$Attributes$stringProperty = F2(
-	function (key, string) {
-		return A2(
-			_VirtualDom_property,
-			key,
-			$elm$json$Json$Encode$string(string));
-	});
 var $elm$html$Html$Attributes$src = function (url) {
 	return A2(
 		$elm$html$Html$Attributes$stringProperty,
@@ -6338,17 +6345,32 @@ var $author$project$NebrasketballMoms$renderMessagePhoto = function (message) {
 	} else {
 		var aPhoto = _v0.a;
 		var prependURL = 'https://storage.cloud.google.com/directed-curve-263321.appspot.com/';
+		var imgURL = _Utils_ap(prependURL, aPhoto.uri);
 		return (aPhoto.uri !== '') ? A2(
-			$elm$html$Html$img,
+			$elm$html$Html$div,
+			_List_Nil,
 			_List_fromArray(
 				[
-					$elm$html$Html$Attributes$src(
-					_Utils_ap(prependURL, aPhoto.uri))
-				]),
-			_List_Nil) : $elm$html$Html$text('Error -- Expected a photo URI here!');
+					A2(
+					$elm$html$Html$a,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$href(imgURL)
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$img,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$src(imgURL)
+								]),
+							_List_Nil)
+						]))
+				])) : $elm$html$Html$text('Error -- Expected a photo URI here!');
 	}
 };
-var $elm$html$Html$a = _VirtualDom_node('a');
+var $elm$html$Html$h4 = _VirtualDom_node('h4');
 var $author$project$NebrasketballMoms$renderMessageShare = function (message) {
 	var _v0 = message.share;
 	if (_v0.$ === 'Nothing') {
@@ -6380,20 +6402,150 @@ var $author$project$NebrasketballMoms$renderMessageShare = function (message) {
 				]));
 	}
 };
+var $elm$core$List$filter = F2(
+	function (isGood, list) {
+		return A3(
+			$elm$core$List$foldr,
+			F2(
+				function (x, xs) {
+					return isGood(x) ? A2($elm$core$List$cons, x, xs) : xs;
+				}),
+			_List_Nil,
+			list);
+	});
+var $elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(x);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $author$project$NebrasketballMoms$messageContainsLink = function (message) {
+	return A2($elm$core$String$contains, 'http', message);
+};
+var $elm$html$Html$p = _VirtualDom_node('p');
+var $elm$html$Html$span = _VirtualDom_node('span');
+var $elm$core$Maybe$withDefault = F2(
+	function (_default, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return value;
+		} else {
+			return _default;
+		}
+	});
+var $elm$core$String$words = _String_words;
 var $author$project$NebrasketballMoms$renderMessageText = function (message) {
-	return A2(
-		$elm$html$Html$div,
-		_List_Nil,
-		_List_fromArray(
-			[
-				A2(
-				$elm$html$Html$h4,
-				_List_Nil,
-				_List_fromArray(
-					[
-						$elm$html$Html$text(message.sender + (': ' + message.content))
-					]))
-			]));
+	if ($author$project$NebrasketballMoms$messageContainsLink(message.content)) {
+		var messageWords = $elm$core$String$words(message.content);
+		var theLinkAsList = $elm$core$List$head(
+			A2(
+				$elm$core$List$filter,
+				function (word) {
+					return A2($elm$core$String$contains, 'http', word);
+				},
+				messageWords));
+		var theLink = function () {
+			if (theLinkAsList.$ === 'Nothing') {
+				return '';
+			} else {
+				var aLink = theLinkAsList.a;
+				return aLink;
+			}
+		}();
+		var linkIndex = A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			$elm$core$List$head(
+				A2($elm$core$String$indexes, 'http', message.content)));
+		var messageLeftOfLink = A3($elm$core$String$slice, 0, linkIndex, message.content);
+		var messageRightOfLink = A3(
+			$elm$core$String$slice,
+			linkIndex + $elm$core$String$length(theLink),
+			$elm$core$String$length(message.content),
+			message.content);
+		return A2(
+			$elm$html$Html$div,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$p,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('messageSender')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(message.sender + ': ')
+						])),
+					A2(
+					$elm$html$Html$span,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$p,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('messageText')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(messageLeftOfLink)
+								])),
+							A2(
+							$elm$html$Html$a,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$href(theLink)
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(theLink)
+								])),
+							A2(
+							$elm$html$Html$p,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('messageText')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(messageRightOfLink)
+								]))
+						]))
+				]));
+	} else {
+		return A2(
+			$elm$html$Html$div,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$p,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('messageSender')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(message.sender)
+						])),
+					A2(
+					$elm$html$Html$p,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('messageText')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(message.content)
+						]))
+				]));
+	}
 };
 var $author$project$NebrasketballMoms$viewRandomMessage = function (randomMessage) {
 	var _v0 = randomMessage.messageType;
@@ -6405,26 +6557,7 @@ var $author$project$NebrasketballMoms$viewRandomMessage = function (randomMessag
 		case 'TextMessage':
 			return $author$project$NebrasketballMoms$renderMessageText(randomMessage);
 		default:
-			return A2(
-				$elm$html$Html$div,
-				_List_Nil,
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$h2,
-						_List_Nil,
-						_List_fromArray(
-							[
-								$elm$html$Html$text('UnknownType')
-							])),
-						A2(
-						$elm$html$Html$h4,
-						_List_Nil,
-						_List_fromArray(
-							[
-								$elm$html$Html$text(randomMessage.sender + (' : ' + randomMessage.content))
-							]))
-					]));
+			return A2($elm$html$Html$div, _List_Nil, _List_Nil);
 	}
 };
 var $author$project$NebrasketballMoms$viewMessageOrError = function (model) {
@@ -6439,17 +6572,12 @@ var $author$project$NebrasketballMoms$viewMessageOrError = function (model) {
 var $author$project$NebrasketballMoms$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
-		_List_Nil,
 		_List_fromArray(
 			[
-				A2(
-				$elm$html$Html$h1,
-				_List_Nil,
-				_List_fromArray(
-					[
-						$elm$html$Html$text('Random Message')
-					])),
-				$author$project$NebrasketballMoms$viewMessageOrError(model),
+				$elm$html$Html$Attributes$class('mainFlexDiv')
+			]),
+		_List_fromArray(
+			[
 				A2(
 				$elm$html$Html$button,
 				_List_fromArray(
@@ -6459,6 +6587,16 @@ var $author$project$NebrasketballMoms$view = function (model) {
 				_List_fromArray(
 					[
 						$elm$html$Html$text('Random Message')
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('subFlexDiv')
+					]),
+				_List_fromArray(
+					[
+						$author$project$NebrasketballMoms$viewMessageOrError(model)
 					]))
 			]));
 };
