@@ -140,14 +140,18 @@ renderMessageText message =
             messageLeftOfLink = String.slice 0 linkIndex message.content
             messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length message.content) message.content
         in
-            div []
+            div [class "flexChildContainer"]
             [
-                p [class "messageSender"] [text (message.sender ++ ": ")],
-                span [] 
+                div[class "flexChild"] 
                 [
+                    p [class "messageSender"] [text message.sender],
                     p [class "messageText"] [text messageLeftOfLink],
                     a [href theLink] [text theLink],
                     p [class "messageText"] [text messageRightOfLink]
+                ],
+                div [class "flexChild"] 
+                [
+                    iframe [class "customIframe", src theLink] []
                 ]
             ]
     else

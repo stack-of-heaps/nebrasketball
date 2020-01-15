@@ -6422,11 +6422,11 @@ var $elm$core$List$head = function (list) {
 		return $elm$core$Maybe$Nothing;
 	}
 };
+var $elm$html$Html$iframe = _VirtualDom_node('iframe');
 var $author$project$NebrasketballMoms$messageContainsLink = function (message) {
 	return A2($elm$core$String$contains, 'http', message);
 };
 var $elm$html$Html$p = _VirtualDom_node('p');
-var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
 		if (maybe.$ === 'Just') {
@@ -6468,24 +6468,30 @@ var $author$project$NebrasketballMoms$renderMessageText = function (message) {
 			message.content);
 		return A2(
 			$elm$html$Html$div,
-			_List_Nil,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('flexChildContainer')
+				]),
 			_List_fromArray(
 				[
 					A2(
-					$elm$html$Html$p,
+					$elm$html$Html$div,
 					_List_fromArray(
 						[
-							$elm$html$Html$Attributes$class('messageSender')
+							$elm$html$Html$Attributes$class('flexChild')
 						]),
 					_List_fromArray(
 						[
-							$elm$html$Html$text(message.sender + ': ')
-						])),
-					A2(
-					$elm$html$Html$span,
-					_List_Nil,
-					_List_fromArray(
-						[
+							A2(
+							$elm$html$Html$p,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('messageSender')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(message.sender)
+								])),
 							A2(
 							$elm$html$Html$p,
 							_List_fromArray(
@@ -6516,6 +6522,23 @@ var $author$project$NebrasketballMoms$renderMessageText = function (message) {
 								[
 									$elm$html$Html$text(messageRightOfLink)
 								]))
+						])),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('flexChild')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$iframe,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('customIframe'),
+									$elm$html$Html$Attributes$src(theLink)
+								]),
+							_List_Nil)
 						]))
 				]));
 	} else {
