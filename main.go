@@ -65,12 +65,11 @@ type ReturnMessage struct {
 
 type ServerResponse struct {
 	MessageResults Messages
-	Empty          bool
-	FirstID        primitive.ObjectID
-	LastID         primitive.ObjectID
+	Error          string
+	nextID         primitive.ObjectID
 }
 
-// Only grabs alphanumeric ID and quotes between ObjectID()
+// ObjectIdRegEx Only grabs alphanumeric ID and quotes between ObjectID()
 var ObjectIdRegEx = regexp.MustCompile(`"(.*?)"`)
 
 func reformatObjectId(objectId string) string {
@@ -90,6 +89,8 @@ func reformatObjectId(objectId string) string {
 
 func randomMessage(s *Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		fmt.Println("Begin randomMessage")
 
 		// Construct aggregation "pipeline" to return 1 random document from entire collection
 		pipeline := []bson.D{bson.D{{"$sample", bson.D{{"size", 1}}}}}
@@ -114,6 +115,103 @@ func randomMessage(s *Server) http.Handler {
 		jsonResult, _ := json.Marshal(retMessage)
 
 		w.Write(jsonResult)
+
+		fmt.Println("End randomMessage")
+	})
+}
+
+func pagedMessagesLogic(s *Server, r *http.Request) []byte {
+
+	fmt.Println("pagedMessagesBySender")
+
+	maxItems := 10
+	query := r.URL.Query()
+	if len(query) == 0 {
+		responseObject := ServerResponse{
+			Error:          "URL should be in format '/?sender=example%20name&startAt=a8890ef6b...'",
+			MessageResults: Messages{},
+			nextID:         primitive.ObjectID{}}
+
+		jsonResponse, _ := json.Marshal(responseObject)
+		return jsonResponse
+	}
+
+	var startingId string
+
+	senderQ := query["sender"]
+
+	fmt.Println("SenderQ: ", senderQ)
+
+	if len(senderQ) == 0 {
+		responseObject := ServerResponse{
+			Error:          "No value provided for 'sender' in query",
+			MessageResults: Messages{},
+			nextID:         primitive.ObjectID{}}
+
+		jsonResponse, _ := json.Marshal(responseObject)
+		return jsonResponse
+	}
+
+	sender := senderQ[0]
+
+	if sender == "" {
+		responseObject := ServerResponse{
+			Error:          "No value provided for 'sender' in query",
+			MessageResults: Messages{},
+			nextID:         primitive.ObjectID{}}
+
+		jsonResponse, _ := json.Marshal(responseObject)
+		return jsonResponse
+	}
+
+	fmt.Println(startingId)
+
+	startingIdQ := query["startAt"]
+	if len(startingIdQ) == 0 {
+		startingId = ""
+	} else {
+		startingId = startingIdQ[0]
+	}
+
+	// In this pipeline, we want to match on sender AND gt objectId, with maximum number of results being 10 at a time
+	// { $match : { author : "dave" } }
+	// { $limit : maxItems }
+	// { $gt: objectID }
+	// TODO: CONVERT BSON.D SLICE INTO BSON.M MAP:  https://godoc.org/go.mongodb.org/mongo-driver/bson
+	// bson.D{{"foo", "bar"}, {"hello", "world"}, {"pi", 3.14159}}
+	// bson.M{"foo": "bar", "hello": "world", "pi": 3.14159}
+	//pipeline := []bson.D{bson.D{{"$match", {bson.D{{"sender", sender}}}}}, bson.D{{"$limit", maxItems}}}
+	pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender}}, bson.M{"$limit": maxItems}}
+
+	cursor, _ := s.col.Aggregate(context.Background(), pipeline)
+
+	var messageBatch []Message
+	var result Message
+	for cursor.Next(context.Background()) {
+		cursorErr := cursor.Decode(&result)
+		if cursorErr != nil {
+			log.Fatal("Error in pagedMessagesBySender() cursor: ", cursorErr)
+		}
+
+		fmt.Println("Result: ", result)
+		messageBatch = append(messageBatch, result)
+		rawObj := cursor.Current
+		fmt.Println("_id:", rawObj.Lookup("_id"))
+
+	}
+
+	messageBatchJson, _ := json.Marshal(messageBatch)
+
+	return messageBatchJson
+}
+func pagedMessagesBySender(s *Server) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		returnJson := pagedMessagesLogic(s, r)
+
+		w.Write(returnJson)
+
+		fmt.Println("End pagedMessagesBySender()")
 	})
 }
 
@@ -287,6 +385,7 @@ func main() {
 	http.Handle("/random", randomMessage(server))
 	http.Handle("/randsender", randomMessageBySender(server))
 	http.Handle("/getallfromsender", allMessagesBySender(server))
+	http.Handle("/getpagedfromsender", pagedMessagesBySender(server))
 
 	port := getPort()
 	log.Printf("Listening on port %s", port)
