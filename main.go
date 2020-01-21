@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -12,7 +17,6 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -65,9 +69,17 @@ type ReturnMessage struct {
 
 type ServerResponse struct {
 	MessageResults Messages
-	Error          string
-	nextID         primitive.ObjectID
+	Error          ErrorCode
+	LastID         string
 }
+
+type ErrorCode string
+
+const (
+	KeyPassPhrase             string    = "fjklj4kj12414980a9fasdvklavn!@$1"
+	MalformedPagedBySenderURL ErrorCode = "URL should look like '...?sender=example%20name&startAt=a8890ef6b...'"
+	SenderEmpty               ErrorCode = "URL 'sender' parameter is empty"
+)
 
 // ObjectIdRegEx Only grabs alphanumeric ID and quotes between ObjectID()
 var ObjectIdRegEx = regexp.MustCompile(`"(.*?)"`)
@@ -120,94 +132,221 @@ func randomMessage(s *Server) http.Handler {
 	})
 }
 
-func pagedMessagesLogic(s *Server, r *http.Request) []byte {
+func createEmptyServerResponseWithError(err ErrorCode) ServerResponse {
 
-	fmt.Println("pagedMessagesBySender")
+	return ServerResponse{
+		Error:          err,
+		MessageResults: Messages{},
+		LastID:         ""}
+}
 
-	maxItems := 10
+// First string 	= sender
+// Second string 	= startingId (if any)
+// If ServerResponse != nil -> Return it, because we have an error
+
+func getPagedQueryTerms(r *http.Request) (string, string, ServerResponse) {
+
 	query := r.URL.Query()
-	if len(query) == 0 {
-		responseObject := ServerResponse{
-			Error:          "URL should be in format '/?sender=example%20name&startAt=a8890ef6b...'",
-			MessageResults: Messages{},
-			nextID:         primitive.ObjectID{}}
 
-		jsonResponse, _ := json.Marshal(responseObject)
-		return jsonResponse
+	if len(query) == 0 {
+		responseObject := createEmptyServerResponseWithError(MalformedPagedBySenderURL)
+		return "", "", responseObject
 	}
 
-	var startingId string
-
 	senderQ := query["sender"]
-
-	fmt.Println("SenderQ: ", senderQ)
-
 	if len(senderQ) == 0 {
-		responseObject := ServerResponse{
-			Error:          "No value provided for 'sender' in query",
-			MessageResults: Messages{},
-			nextID:         primitive.ObjectID{}}
 
-		jsonResponse, _ := json.Marshal(responseObject)
-		return jsonResponse
+		responseObject := createEmptyServerResponseWithError(SenderEmpty)
+		return "", "", responseObject
 	}
 
 	sender := senderQ[0]
 
 	if sender == "" {
-		responseObject := ServerResponse{
-			Error:          "No value provided for 'sender' in query",
-			MessageResults: Messages{},
-			nextID:         primitive.ObjectID{}}
-
-		jsonResponse, _ := json.Marshal(responseObject)
-		return jsonResponse
+		responseObject := createEmptyServerResponseWithError(SenderEmpty)
+		return "", "", responseObject
 	}
 
-	fmt.Println(startingId)
-
 	startingIdQ := query["startAt"]
+	var startingId string
 	if len(startingIdQ) == 0 {
 		startingId = ""
 	} else {
 		startingId = startingIdQ[0]
 	}
 
-	// In this pipeline, we want to match on sender AND gt objectId, with maximum number of results being 10 at a time
-	// { $match : { author : "dave" } }
-	// { $limit : maxItems }
-	// { $gt: objectID }
-	// TODO: CONVERT BSON.D SLICE INTO BSON.M MAP:  https://godoc.org/go.mongodb.org/mongo-driver/bson
+	return sender, startingId, ServerResponse{}
+}
+
+func encryptLastId(lastId string) string {
+
+	fmt.Println("Beginning encryptLastId()")
+
+	// Generate AES cipher with 32 byte passphrase
+	aesCipher, err := aes.NewCipher([]byte(KeyPassPhrase))
+
+	if err != nil {
+		fmt.Println("Error in encryptLastId(): ", err)
+	}
+
+	// GCM "Galois/Counter Mode": Symmetric Keyy cryptographic block cipher
+	gcm, err := cipher.NewGCM(aesCipher)
+	if err != nil {
+		fmt.Println("Error in encryptLastId(): ", err)
+	}
+
+	// Nonce is literally a "one off" byte array which will be populated by a random sequence below.
+	// The nonce is prepended/appended to the cipher (?) and is used in deciphering
+	nonce := make([]byte, gcm.NonceSize())
+
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		fmt.Println("Error in io.ReadFull: ", err)
+	}
+
+	encryptedByteArray := gcm.Seal(nonce, nonce, []byte(lastId), nil)
+
+	// Convert to Base64 to ensure we can transmit via HTTP without error or corruption
+	encryptedString := base64.StdEncoding.EncodeToString(encryptedByteArray)
+
+	fmt.Println("Ending encryptLastId()")
+
+	return encryptedString
+}
+
+func decryptLastId(encLastId string) string {
+
+	fmt.Println("Beginning decryptLastId()")
+
+	encLastIdByteArray, err := base64.StdEncoding.DecodeString(encLastId)
+
+	if err != nil {
+		fmt.Println("Error in StdEncoding.DecodeString: ", err)
+	}
+
+	aesCipher, err := aes.NewCipher([]byte(KeyPassPhrase))
+
+	if err != nil {
+		fmt.Println("Error in decryptLastId(): ", err)
+	}
+
+	gcm, err := cipher.NewGCM(aesCipher)
+	if err != nil {
+		fmt.Println("Error in encryptLastId(): ", err)
+	}
+
+	nonceSize := gcm.NonceSize()
+
+	nonce, cipherText := encLastIdByteArray[:nonceSize], encLastIdByteArray[nonceSize:]
+
+	decryptedLastId, err := gcm.Open(nil, []byte(nonce), []byte(cipherText), nil)
+
+	if err != nil {
+		fmt.Println("Error in gcm.Open: ", err)
+	}
+
+	fmt.Println("Ending decryptLastId()")
+
+	return string(decryptedLastId)
+
+}
+
+func pagedMessagesLogic(s *Server, r *http.Request) ServerResponse {
+
+	fmt.Println("Begin pagedMessagesBySender()")
+
+	maxItems := 10
+
+	sender, startingId, err := getPagedQueryTerms(r)
+
+	if err.Error != "" {
+		return err
+	}
+
+	fmt.Println("StartingID: ", startingId)
+	fmt.Println("Sender: ", sender)
+
 	// bson.D{{"foo", "bar"}, {"hello", "world"}, {"pi", 3.14159}}
 	// bson.M{"foo": "bar", "hello": "world", "pi": 3.14159}
-	//pipeline := []bson.D{bson.D{{"$match", {bson.D{{"sender", sender}}}}}, bson.D{{"$limit", maxItems}}}
-	pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender}}, bson.M{"$limit": maxItems}}
+	// pipeline := []bson.D{bson.D{{"$match", {bson.D{{"sender", sender}}}}}, bson.D{{"$limit", maxItems}}}
+	// pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender, "_id": bson.M{"$gt": startingId}}}, bson.M{"$limit": maxItems}}
+
+	pipeline := pagedPipelineBuilder(sender, startingId, maxItems)
 
 	cursor, _ := s.col.Aggregate(context.Background(), pipeline)
 
-	var messageBatch []Message
+	var messageBatch Messages
 	var result Message
+	var rawId bson.RawValue
+
 	for cursor.Next(context.Background()) {
 		cursorErr := cursor.Decode(&result)
 		if cursorErr != nil {
 			log.Fatal("Error in pagedMessagesBySender() cursor: ", cursorErr)
 		}
 
-		fmt.Println("Result: ", result)
-		messageBatch = append(messageBatch, result)
-		rawObj := cursor.Current
-		fmt.Println("_id:", rawObj.Lookup("_id"))
-
+		messageBatch.Messages = append(messageBatch.Messages, result)
+		rawId = cursor.Current.Lookup("_id")
 	}
 
-	messageBatchJson, _ := json.Marshal(messageBatch)
+	//fmt.Println("RawID to String: ", rawId["$oid"])
+	objectID := rawId.ObjectID()
+	lastId := strings.Split(objectID.String(), "\"")[1]
 
-	return messageBatchJson
+	encryptedLastId := encryptLastId(lastId)
+	decryptedLastId := decryptLastId(encryptedLastId)
+
+	fmt.Println("Last ID: ", lastId)
+	fmt.Println("Encrypted ID: ", encryptedLastId)
+	fmt.Println("Decrypted ID: ", decryptedLastId)
+
+	serverResponse := ServerResponse{
+		MessageResults: messageBatch,
+		Error:          "",
+		LastID:         lastId}
+
+	return serverResponse
 }
+
+func pagedPipelineBuilder(sender string, startingId string, limit int) []bson.M {
+
+	//pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender, "_id": bson.M{"$gt": startingId}}}, bson.M{"$limit": maxItems}}
+	matchElement := matchPipelineBuilder(sender, startingId)
+	limitElement := bson.M{"$limit": limit}
+	pipeline := []bson.M{matchElement, limitElement}
+
+	return pipeline
+}
+
+func matchPipelineBuilder(sender string, startingId string) bson.M {
+
+	matchRoot := bson.M{"$match": ""}
+	senderElement := bson.M{"sender": sender}
+	idElement := bson.M{"_id": ""}
+	gtElement := bson.M{"$gt": ""}
+
+	if startingId == "" {
+		matchRoot["$match"] = senderElement
+	} else {
+		gtElement["$gt"] = startingId
+		idElement["_id"] = gtElement
+		tempArray := []bson.M{senderElement, idElement}
+		matchRoot["$match"] = tempArray
+	}
+
+	fmt.Println("REturning matchroot: ", matchRoot)
+	return matchRoot
+}
+
 func pagedMessagesBySender(s *Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		returnJson := pagedMessagesLogic(s, r)
+		returnObject := pagedMessagesLogic(s, r)
+
+		returnJson, err := json.Marshal(returnObject)
+
+		if err != nil {
+			fmt.Println("Error converted pagedMessagesLogic() response to JSON: ", err)
+		}
 
 		w.Write(returnJson)
 
