@@ -288,23 +288,22 @@ func pagedMessagesLogic(s *Server, r *http.Request) ServerResponse {
 		rawId = cursor.Current.Lookup("_id")
 	}
 
-	//fmt.Println("RawID to String: ", rawId["$oid"])
-	objectID := rawId.ObjectID()
-	lastId := strings.Split(objectID.String(), "\"")[1]
-
+	lastId := stringFromRawValue(rawId)
 	encryptedLastId := encryptLastId(lastId)
-	decryptedLastId := decryptLastId(encryptedLastId)
-
-	fmt.Println("Last ID: ", lastId)
-	fmt.Println("Encrypted ID: ", encryptedLastId)
-	fmt.Println("Decrypted ID: ", decryptedLastId)
 
 	serverResponse := ServerResponse{
 		MessageResults: messageBatch,
 		Error:          "",
-		LastID:         lastId}
+		LastID:         encryptedLastId}
 
 	return serverResponse
+}
+
+func stringFromRawValue(rawId bson.RawValue) string {
+	objectID := rawId.ObjectID().String()
+	lastId := strings.Split(objectID, "\"")
+
+	return lastId[1]
 }
 
 func pagedPipelineBuilder(sender string, startingId string, limit int) []bson.M {
