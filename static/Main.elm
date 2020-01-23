@@ -22,7 +22,11 @@ type alias Reaction =
     actor : String
  }
 
-type MessageType = TextMessage | PhotoMessage | ShareMessage | Unknown | Mixed
+type ProcessedMessage 
+    = TextMessage { sender : String, content : String, timestamp: Int }
+    | PhotoMessage { sender : String, content : String, timestamp: Int, photo: Photo }
+    | ShareMessage { sender : String, content : String, timestamp: Int, share: Share }
+    | EmptyMessage { sender: String, content: String, timestamp: Int }
 
 type alias MessengerMessage =
   {
@@ -31,13 +35,12 @@ type alias MessengerMessage =
     timestamp: Int,
     photo : Maybe Photo,
     share : Maybe Share,
-    reactions : Maybe (List Reaction),
-    messageType: MessageType
+    reactions : Maybe (List Reaction)
   }
 
 type alias Model = 
     {
-        randomMessage : MessengerMessage,
+        randomMessage : ProcessedMessage,
         errorMessage : Maybe String
     }
 
@@ -67,13 +70,16 @@ viewMessageOrError model =
         Nothing ->
             viewRandomMessage model.randomMessage
 
-renderMessageLink : MessengerMessage -> Html Msg
+renderMessageLink : ProcessedMessage -> Html Msg
 renderMessageLink message =
-    div [] 
-    [ 
-        h4 [] [ text (message.sender ++ " sent a link") ],
-        a [src message.content] [ text message.content ]
-    ]
+    case message of 
+        TextMessage textMessage ->
+            div [] 
+            [ 
+                h4 [] [ text (textMessage.sender ++ " sent a link") ],
+                a [src textMessage.content] [ text textMessage.content ]
+            ]
+        _ -> text "" 
 
 messageIsShare : MessengerMessage -> Bool
 messageIsShare message = 
@@ -81,16 +87,16 @@ messageIsShare message =
        Nothing -> False
        Just link -> True
 
-renderMessageShare : MessengerMessage -> Html Msg
+renderMessageShare : ProcessedMessage -> Html Msg
 renderMessageShare message =
-    case message.share of
-       Nothing -> Html.text ""
-       Just share ->
+    case message of
+        ShareMessage shareMessage ->
             div [] 
             [ 
-                h4 [] [ text (share.link ++ " sent a link") ],
-                a [src message.content] [ text message.content ]
+                h4 [] [ text (shareMessage.share.link ++ " sent a link") ],
+                a [src shareMessage.content] [ text shareMessage.content ]
             ]
+        _ -> text "" 
 
 messageHasPhoto : MessengerMessage -> Bool
 messageHasPhoto message = 
@@ -98,17 +104,16 @@ messageHasPhoto message =
        Nothing -> False
        Just something -> if something.uri /= "" then True else False
 
-renderMessagePhoto : MessengerMessage -> Html Msg
+renderMessagePhoto : ProcessedMessage -> Html Msg
 renderMessagePhoto message =
-        case message.photo of
-            Nothing -> Html.text ""
-            Just aPhoto -> 
+        case message of
+            PhotoMessage photoMessage ->
                 let 
                     prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/"
-                    imgURL = prependURL ++ aPhoto.uri
+                    imgURL = prependURL ++ photoMessage.photo.uri
                 in
                     if 
-                        aPhoto.uri /= "" 
+                        photoMessage.photo.uri /= "" 
                     then 
                     div [] 
                         [
@@ -116,6 +121,7 @@ renderMessagePhoto message =
                         ]
                     else 
                         Html.text "Error -- Expected a photo URI here!"
+            _ -> text "" 
 
 messageIsOnlyText : MessengerMessage -> Bool
 messageIsOnlyText message =
@@ -124,56 +130,80 @@ messageIsOnlyText message =
 messageContainsLink : String -> Bool
 messageContainsLink message =
     String.contains "http" message
- 
-renderMessageText : MessengerMessage -> Html Msg
+
+renderMessageText : ProcessedMessage -> Html Msg
 renderMessageText message = 
-    if 
-        messageContainsLink message.content 
-    then
-        let 
-            messageWords = String.words message.content
-            theLinkAsList = List.head (List.filter (\word -> String.contains "http" word) messageWords)
-            theLink = case theLinkAsList of
-                Nothing -> ""
-                Just aLink -> aLink
-            linkIndex = Maybe.withDefault 0 (List.head (String.indexes "http" message.content))
-            messageLeftOfLink = String.slice 0 linkIndex message.content
-            messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length message.content) message.content
-        in
-            div [class "flexChildContainer"]
-            [
-                div[class "flexChild"] 
+    case message of
+        TextMessage textMessage ->
+            if
+                messageContainsLink textMessage.content
+            then
+                let 
+                    messageWords = String.words textMessage.content
+                    theLinkAsList = List.head (List.filter (\word -> String.contains "http" word) messageWords)
+                    theLink = case theLinkAsList of
+                        Nothing -> ""
+                        Just aLink -> aLink
+                    linkIndex = Maybe.withDefault 0 (List.head (String.indexes "http" textMessage.content))
+                    messageLeftOfLink = String.slice 0 linkIndex textMessage.content
+                    messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length textMessage.content) textMessage.content
+                in
+                    div [class "flexChildContainer"]
+                    [
+                        div[class "flexChild"] 
+                        [
+                            p [class "messageSender"] [text textMessage.sender],
+                            p [class "messageText"] [text messageLeftOfLink],
+                            a [href theLink] [text theLink],
+                            p [class "messageText"] [text messageRightOfLink]
+                        ],
+                        div [class "flexChild"] 
+                        [
+                            iframe [class "customIframe", src theLink] []
+                        ]
+                    ]
+            else
+                div []
                 [
-                    p [class "messageSender"] [text message.sender],
-                    p [class "messageText"] [text messageLeftOfLink],
-                    a [href theLink] [text theLink],
-                    p [class "messageText"] [text messageRightOfLink]
-                ],
-                div [class "flexChild"] 
-                [
-                    iframe [class "customIframe", src theLink] []
+                    p [class "messageSender"] [text textMessage.sender],
+                    p [class "messageText"] [text textMessage.content]
                 ]
-            ]
-    else
-        div []
-        [
-            p [class "messageSender"] [text message.sender],
-            p [class "messageText"] [text message.content]
-        ]
+        _ -> text "" 
 
-assignMessageType : MessengerMessage -> MessengerMessage
-assignMessageType originalMessage =
-    if messageIsShare originalMessage then { originalMessage | messageType = ShareMessage }
-    else if messageHasPhoto originalMessage then { originalMessage | messageType = PhotoMessage }
-    else if messageIsOnlyText originalMessage then { originalMessage | messageType = TextMessage }
-    else { originalMessage | messageType = Mixed }
+processMessageType : MessengerMessage -> ProcessedMessage
+processMessageType originalMessage =
+    if messageIsShare originalMessage then makeShareMessage originalMessage
+    else if messageHasPhoto originalMessage then makePhotoMessage originalMessage
+    else if messageIsOnlyText originalMessage then makeTextMessage originalMessage
+    else TextMessage { sender = "", content = "I've encountered something in the ProcessMessageType function which has fallen through into the base 'else' statement", timestamp = 0 }
 
-viewRandomMessage : MessengerMessage -> Html Msg
+makeShareMessage : MessengerMessage -> ProcessedMessage
+makeShareMessage originalMessage =
+    case originalMessage.share of
+        Just aShare -> 
+            ShareMessage { sender = originalMessage.sender, content = originalMessage.content, timestamp = originalMessage.timestamp, share = aShare }
+        Nothing -> 
+            ShareMessage { sender = originalMessage.sender, content = originalMessage.content, timestamp = originalMessage.timestamp, share = Share "Whoops! There was an error processing this Share Message." }
+
+makePhotoMessage : MessengerMessage -> ProcessedMessage
+makePhotoMessage originalMessage =
+    case originalMessage.photo of
+        Just aPhoto -> 
+            PhotoMessage { sender = originalMessage.sender, content = originalMessage.content, timestamp = originalMessage.timestamp, photo = aPhoto }
+        Nothing ->
+            PhotoMessage { sender = originalMessage.sender, content = originalMessage.content, timestamp = originalMessage.timestamp, photo = Photo "Whoops! There was an error processing this Photo Message." } 
+
+
+makeTextMessage : MessengerMessage -> ProcessedMessage
+makeTextMessage originalMessage =
+    TextMessage { sender = originalMessage.sender, content = originalMessage.content, timestamp = originalMessage.timestamp }
+
+viewRandomMessage : ProcessedMessage -> Html Msg
 viewRandomMessage randomMessage =
-    case randomMessage.messageType of 
-        PhotoMessage -> renderMessagePhoto randomMessage
-        ShareMessage -> renderMessageShare randomMessage
-        TextMessage -> renderMessageText randomMessage
+    case randomMessage of 
+        PhotoMessage photoMessage -> renderMessagePhoto randomMessage
+        ShareMessage shareMessage -> renderMessageShare randomMessage
+        TextMessage textMessage -> renderMessageText randomMessage
         _ ->
             div []
             [
@@ -224,20 +254,15 @@ reactionsDecoder : Decoder ( Maybe ( List Reaction ))
 reactionsDecoder = 
     Decode.maybe (Decode.list reactionDecoder)
 
-messageTypeDecoder : Decoder MessageType
-messageTypeDecoder =
-    Decode.succeed Unknown
-
 messageDecoder : Decoder MessengerMessage
 messageDecoder = 
-  Decode.map7 MessengerMessage
+  Decode.map6 MessengerMessage
     senderDecoder
     contentDecoder
     timestampDecoder
     photoDecoder
     shareDecoder
     reactionsDecoder
-    messageTypeDecoder
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
@@ -246,7 +271,7 @@ update msg model =
         
         DataReceived (Ok messengerMessage) -> ( 
             let 
-                messageWithType = assignMessageType messengerMessage 
+                messageWithType = processMessageType messengerMessage 
             in
                 {model | randomMessage = messageWithType, errorMessage = Nothing }, Cmd.none )
         
@@ -270,17 +295,8 @@ buildErrorMessage httpError =
         Http.BadBody message ->
             message
 
-initRandomMessage : MessengerMessage
-initRandomMessage = 
-    {
-        sender = "",
-        content = "",
-        timestamp = 0,
-        photo = Nothing,
-        share = Nothing,
-        reactions = Nothing,
-        messageType = Unknown
-    }
+initRandomMessage : ProcessedMessage
+initRandomMessage = EmptyMessage {sender = "", content = " ", timestamp = 0 }
 
 init : () -> ( Model, Cmd Msg )
 init _ =
