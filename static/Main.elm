@@ -23,10 +23,33 @@ type alias Reaction =
  }
 
 type ProcessedMessage 
-    = TextMessage { sender : String, content : String, timestamp: Int }
-    | PhotoMessage { sender : String, content : String, timestamp: Int, photo: Photo }
-    | ShareMessage { sender : String, content : String, timestamp: Int, share: Share }
+    = TextMessage TextMessageObject
+    | PhotoMessage PhotoMessageObject
+    | ShareMessage ShareMessageObject
     | EmptyMessage { sender: String, content: String, timestamp: Int }
+
+type alias TextMessageObject =
+    { 
+        sender : String, 
+        content : String, 
+        timestamp: Int 
+    }
+
+type alias PhotoMessageObject =
+    { 
+        sender : String,
+        content : String, 
+        timestamp: Int, 
+        photo: Photo 
+    }
+
+type alias ShareMessageObject =
+    { 
+        sender : String,
+        content : String, 
+        timestamp: Int, 
+        share: Share
+    }
 
 type alias MessengerMessage =
   {
@@ -70,16 +93,13 @@ viewMessageOrError model =
         Nothing ->
             viewRandomMessage model.randomMessage
 
-renderMessageLink : ProcessedMessage -> Html Msg
+renderMessageLink : TextMessageObject -> Html Msg
 renderMessageLink message =
-    case message of 
-        TextMessage textMessage ->
-            div [] 
-            [ 
-                h4 [] [ text (textMessage.sender ++ " sent a link") ],
-                a [src textMessage.content] [ text textMessage.content ]
-            ]
-        _ -> text "" 
+    div [] 
+    [ 
+        h4 [] [ text (message.sender ++ " sent a link") ],
+        a [src message.content] [ text message.content ]
+    ]
 
 messageIsShare : MessengerMessage -> Bool
 messageIsShare message = 
@@ -87,16 +107,13 @@ messageIsShare message =
        Nothing -> False
        Just link -> True
 
-renderMessageShare : ProcessedMessage -> Html Msg
+renderMessageShare : ShareMessageObject -> Html Msg
 renderMessageShare message =
-    case message of
-        ShareMessage shareMessage ->
-            div [] 
-            [ 
-                h4 [] [ text (shareMessage.share.link ++ " sent a link") ],
-                a [src shareMessage.content] [ text shareMessage.content ]
-            ]
-        _ -> text "" 
+    div [] 
+    [ 
+        h4 [] [ text (message.share.link ++ " sent a link") ],
+        a [src message.content] [ text message.content ]
+    ]
 
 messageHasPhoto : MessengerMessage -> Bool
 messageHasPhoto message = 
@@ -104,24 +121,21 @@ messageHasPhoto message =
        Nothing -> False
        Just something -> if something.uri /= "" then True else False
 
-renderMessagePhoto : ProcessedMessage -> Html Msg
+renderMessagePhoto : PhotoMessageObject -> Html Msg
 renderMessagePhoto message =
-        case message of
-            PhotoMessage photoMessage ->
-                let 
-                    prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/"
-                    imgURL = prependURL ++ photoMessage.photo.uri
-                in
-                    if 
-                        photoMessage.photo.uri /= "" 
-                    then 
-                    div [] 
-                        [
-                            a [ href imgURL ] [img [src imgURL] []] 
-                        ]
-                    else 
-                        Html.text "Error -- Expected a photo URI here!"
-            _ -> text "" 
+    let 
+        prependURL = "https://storage.cloud.google.com/directed-curve-263321.appspot.com/"
+        imgURL = prependURL ++ message.photo.uri
+    in
+        if 
+            message.photo.uri /= "" 
+        then 
+        div [] 
+            [
+                a [ href imgURL ] [img [src imgURL] []] 
+            ]
+        else 
+            Html.text "Error -- Expected a photo URI here!"
 
 messageIsOnlyText : MessengerMessage -> Bool
 messageIsOnlyText message =
@@ -131,51 +145,48 @@ messageContainsLink : String -> Bool
 messageContainsLink message =
     String.contains "http" message
 
-renderMessageText : ProcessedMessage -> Html Msg
+renderMessageText : TextMessageObject -> Html Msg
 renderMessageText message = 
-    case message of
-        TextMessage textMessage ->
-            if
-                messageContainsLink textMessage.content
-            then
-                let 
-                    messageWords = String.words textMessage.content
-                    theLinkAsList = List.head (List.filter (\word -> String.contains "http" word) messageWords)
-                    theLink = case theLinkAsList of
-                        Nothing -> ""
-                        Just aLink -> aLink
-                    linkIndex = Maybe.withDefault 0 (List.head (String.indexes "http" textMessage.content))
-                    messageLeftOfLink = String.slice 0 linkIndex textMessage.content
-                    messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length textMessage.content) textMessage.content
-                in
-                    div [class "flexChildContainer"]
-                    [
-                        div[class "flexChild"] 
-                        [
-                            p [class "messageSender"] [text textMessage.sender],
-                            p [class "messageText"] [text messageLeftOfLink],
-                            a [href theLink] [text theLink],
-                            p [class "messageText"] [text messageRightOfLink]
-                        ],
-                        div [class "flexChild"] 
-                        [
-                            iframe [class "customIframe", src theLink] []
-                        ]
-                    ]
-            else
-                div []
+    if
+        messageContainsLink message.content
+    then
+        let 
+            messageWords = String.words message.content
+            theLinkAsList = List.head (List.filter (\word -> String.contains "http" word) messageWords)
+            theLink = case theLinkAsList of
+                Nothing -> ""
+                Just aLink -> aLink
+            linkIndex = Maybe.withDefault 0 (List.head (String.indexes "http" message.content))
+            messageLeftOfLink = String.slice 0 linkIndex message.content
+            messageRightOfLink = String.slice (linkIndex + String.length theLink) (String.length message.content) message.content
+        in
+            div [class "flexChildContainer"]
+            [
+                div[class "flexChild"] 
                 [
-                    p [class "messageSender"] [text textMessage.sender],
-                    p [class "messageText"] [text textMessage.content]
+                    p [class "messageSender"] [text message.sender],
+                    p [class "messageText"] [text messageLeftOfLink],
+                    a [href theLink] [text theLink],
+                    p [class "messageText"] [text messageRightOfLink]
+                ],
+                div [class "flexChild"] 
+                [
+                    iframe [class "customIframe", src theLink] []
                 ]
-        _ -> text "" 
+            ]
+    else
+        div []
+        [
+            p [class "messageSender"] [text message.sender],
+            p [class "messageText"] [text message.content]
+        ]
 
 processMessageType : MessengerMessage -> ProcessedMessage
 processMessageType originalMessage =
     if messageIsShare originalMessage then makeShareMessage originalMessage
     else if messageHasPhoto originalMessage then makePhotoMessage originalMessage
     else if messageIsOnlyText originalMessage then makeTextMessage originalMessage
-    else TextMessage { sender = "", content = "I've encountered something in the ProcessMessageType function which has fallen through into the base 'else' statement", timestamp = 0 }
+    else TextMessage { sender = "", content = "The ProcessMessageType function got into an unanticipated state and fell through to the 'else' statement", timestamp = 0 }
 
 makeShareMessage : MessengerMessage -> ProcessedMessage
 makeShareMessage originalMessage =
@@ -201,9 +212,9 @@ makeTextMessage originalMessage =
 viewRandomMessage : ProcessedMessage -> Html Msg
 viewRandomMessage randomMessage =
     case randomMessage of 
-        PhotoMessage photoMessage -> renderMessagePhoto randomMessage
-        ShareMessage shareMessage -> renderMessageShare randomMessage
-        TextMessage textMessage -> renderMessageText randomMessage
+        PhotoMessage photoMessage -> renderMessagePhoto photoMessage
+        ShareMessage shareMessage -> renderMessageShare shareMessage
+        TextMessage textMessage -> renderMessageText textMessage
         _ ->
             div []
             [
