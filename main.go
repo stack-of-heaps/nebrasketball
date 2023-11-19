@@ -16,6 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -25,6 +28,7 @@ type Server struct {
 	db  *mongo.Client
 	col *mongo.Collection
 }
+
 type Participants struct {
 	Name string
 }
@@ -82,22 +86,8 @@ const (
 )
 
 // ObjectIdRegEx Only grabs alphanumeric ID and quotes between ObjectID()
+// TODO: BETTER WAY TO DO THIS?
 var ObjectIdRegEx = regexp.MustCompile(`"(.*?)"`)
-
-func reformatObjectId(objectId string) string {
-
-	fmt.Println("objectID passed in: ", objectId)
-	var idStringBeginning = "ObjectId("
-	var idStringEnd = ")"
-	id := ObjectIdRegEx.FindString(objectId)
-
-	if id == "" {
-		fmt.Println("Error in reformatObjectId")
-		return ""
-	}
-
-	return idStringBeginning + id + idStringEnd
-}
 
 func randomMessage(s *Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +134,7 @@ func createEmptyServerResponseWithError(err ErrorCode) ServerResponse {
 // Second string 	= startingId (if any)
 // If ServerResponse != nil -> Return it, because we have an error
 
-func getPagedQueryTerms(r *http.Request) (string, string, ServerResponse) {
+func getPagedQueryTerms(r *http.Request) (sender string, startingId string, response ServerResponse) {
 
 	query := r.URL.Query()
 
@@ -153,14 +143,14 @@ func getPagedQueryTerms(r *http.Request) (string, string, ServerResponse) {
 		return "", "", responseObject
 	}
 
-	senderQ := query["sender"]
-	if len(senderQ) == 0 {
+	senderQueryParam := query["sender"]
+	if len(senderQueryParam) == 0 {
 
 		responseObject := createEmptyServerResponseWithError(SenderEmpty)
 		return "", "", responseObject
 	}
 
-	sender := senderQ[0]
+	sender = senderQueryParam[0]
 
 	if sender == "" {
 		responseObject := createEmptyServerResponseWithError(SenderEmpty)
@@ -168,7 +158,6 @@ func getPagedQueryTerms(r *http.Request) (string, string, ServerResponse) {
 	}
 
 	startingIdQ := query["startAt"]
-	var startingId string
 	if len(startingIdQ) == 0 {
 		startingId = ""
 	} else {
@@ -265,13 +254,10 @@ func pagedMessagesLogic(s *Server, r *http.Request) ServerResponse {
 	fmt.Println("StartingID: ", startingId)
 	fmt.Println("Sender: ", sender)
 
-	// bson.D{{"foo", "bar"}, {"hello", "world"}, {"pi", 3.14159}}
-	// bson.M{"foo": "bar", "hello": "world", "pi": 3.14159}
 	// pipeline := []bson.D{bson.D{{"$match", {bson.D{{"sender", sender}}}}}, bson.D{{"$limit", maxItems}}}
 	// pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender, "_id": bson.M{"$gt": startingId}}}, bson.M{"$limit": maxItems}}
 
 	pipeline := pagedPipelineBuilder(sender, startingId, maxItems)
-
 	cursor, _ := s.col.Aggregate(context.Background(), pipeline)
 
 	var messageBatch Messages
@@ -348,8 +334,6 @@ func pagedMessagesBySender(s *Server) http.Handler {
 		}
 
 		w.Write(returnJson)
-
-		fmt.Println("End pagedMessagesBySender()")
 	})
 }
 
@@ -373,12 +357,11 @@ func craftReturnMessage(objIn Message) ReturnMessage {
 }
 
 func capitalizeName(name string) string {
-	return strings.Title(name)
+	return cases.Title(language.English).String(name)
 }
 
 func checkForVideo(obj Message) bool {
 
-	fmt.Println("in check for video")
 	if obj.Photos == nil {
 		return false
 	}
@@ -386,17 +369,12 @@ func checkForVideo(obj Message) bool {
 	path := obj.Photos[0].Uri
 	ext := ".mp4"
 	fmt.Println("Path: ", path)
-	fmt.Println(strings.Contains(path, ext))
 	return strings.Contains(path, ext)
 }
 
 func handleMediaPath(origPhotos []Photo) []Photo {
 
-	if origPhotos == nil {
-		return origPhotos
-	}
-
-	if origPhotos[0].Uri == "" {
+	if origPhotos == nil || origPhotos[0].Uri == "" {
 		return origPhotos
 	}
 
@@ -406,33 +384,23 @@ func handleMediaPath(origPhotos []Photo) []Photo {
 	gifs := "/gifs/"
 
 	if strings.Contains(*path, videos) {
-		*path = stripVideoPath(*path)
+		*path = stripPath(*path, videos)
 	}
 
 	if strings.Contains(*path, photos) {
-		*path = stripPhotoPath(*path)
+		*path = stripPath(*path, photos)
 	}
 
 	if strings.Contains(*path, gifs) {
-		*path = stripGifPath(*path)
+		*path = stripPath(*path, gifs)
 	}
 
 	return origPhotos
 }
 
-func stripVideoPath(path string) string {
-	videoIndex := strings.Index(path, "/videos/")
-	return path[videoIndex:]
-}
-
-func stripPhotoPath(path string) string {
-	splitString := strings.SplitAfter(path, "/photos/")
-	return splitString[len(splitString)-1]
-}
-
-func stripGifPath(path string) string {
-	gifIndex := strings.Index(path, "/gifs/")
-	return path[gifIndex:]
+func stripPath(path string, substringToStrip string) string {
+	pathIndex := strings.Index(path, substringToStrip)
+	return path[pathIndex:]
 }
 
 func allMessagesBySender(s *Server) http.Handler {
@@ -442,8 +410,8 @@ func allMessagesBySender(s *Server) http.Handler {
 		sender := capitalizeName(q[0])
 
 		pipeline := []bson.D{
-			bson.D{{"$match", bson.D{{"sender", sender}}}},
-			bson.D{{"$sort", bson.D{{"timestamp", -1}}}}}
+			{{"$match", bson.D{{"sender", sender}}}},
+			{{"$sort", bson.D{{"timestamp", -1}}}}}
 		cursor, _ := s.col.Aggregate(context.Background(), pipeline)
 
 		var allMessages Messages
@@ -504,9 +472,9 @@ func getPort() string {
 
 func main() {
 
+	// TODO: SET VIA CONFIGURATION
 	//mongoURI := "mongodb://localhost:27017"
 	mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
-	//client, cancel := mongolib.ConnectToMongoDB(mongoURI)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 
@@ -515,7 +483,6 @@ func main() {
 	}
 
 	defer cancel()
-	//collection := mongolib.GetMongoCollection(client, "nebrasketball", "messages")
 	collection := client.Database("nebrasketball").Collection("messages")
 	server := &Server{db: client, col: collection}
 
