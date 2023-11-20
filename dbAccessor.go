@@ -1,15 +1,23 @@
-package dbAccessor
+package main
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
-	"net/http"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+)
+
+const (
+	KeyPassPhrase string = "fjklj4kj12414980a9fasdvklavn!@$1"
 )
 
 type Message struct {
@@ -59,24 +67,14 @@ func pagedPipelineBuilder(sender string, startingId string, limit int) []bson.M 
 	return pipeline
 }
 
-func pagedMessagesLogic(s *MongoClient, r *http.Request) {
+func pagedMessagesLogic(s *MongoClient, sender string, startingId string) (messages Messages, encryptedLastId string) {
 
 	fmt.Println("Begin pagedMessagesBySender()")
-
-	maxItems := 10
-
-	sender, startingId, err := getPagedQueryTerms(r)
-
-	if err.Error != "" {
-		return err
-	}
-
-	fmt.Println("StartingID: ", startingId)
-	fmt.Println("Sender: ", sender)
 
 	// pipeline := []bson.D{bson.D{{"$match", {bson.D{{"sender", sender}}}}}, bson.D{{"$limit", maxItems}}}
 	// pipeline := []bson.M{bson.M{"$match": bson.M{"sender": sender, "_id": bson.M{"$gt": startingId}}}, bson.M{"$limit": maxItems}}
 
+	maxItems := 10
 	pipeline := pagedPipelineBuilder(sender, startingId, maxItems)
 	cursor, _ := s.col.Aggregate(context.Background(), pipeline)
 
@@ -95,14 +93,52 @@ func pagedMessagesLogic(s *MongoClient, r *http.Request) {
 	}
 
 	lastId := stringFromRawValue(rawId)
-	encryptedLastId := encryptLastId(lastId)
 
-	serverResponse := ServerResponse{
-		MessageResults: messageBatch,
-		Error:          "",
-		LastID:         encryptedLastId}
+	encryptedLastId = encryptLastId(lastId)
 
-	return serverResponse
+	return messageBatch, encryptedLastId
+}
+
+func encryptLastId(lastId string) string {
+
+	fmt.Println("Beginning encryptLastId()")
+
+	// Generate AES cipher with 32 byte passphrase
+	aesCipher, err := aes.NewCipher([]byte(KeyPassPhrase))
+
+	if err != nil {
+		fmt.Println("Error in encryptLastId(): ", err)
+	}
+
+	// GCM "Galois/Counter Mode": Symmetric Keyy cryptographic block cipher
+	gcm, err := cipher.NewGCM(aesCipher)
+	if err != nil {
+		fmt.Println("Error in encryptLastId(): ", err)
+	}
+
+	// Nonce is literally a "one off" byte array which will be populated by a random sequence below.
+	// The nonce is prepended/appended to the cipher (?) and is used in deciphering
+	nonce := make([]byte, gcm.NonceSize())
+
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		fmt.Println("Error in io.ReadFull: ", err)
+	}
+
+	encryptedByteArray := gcm.Seal(nonce, nonce, []byte(lastId), nil)
+
+	// Convert to Base64 to ensure we can transmit via HTTP without error or corruption
+	encryptedString := base64.StdEncoding.EncodeToString(encryptedByteArray)
+
+	fmt.Println("Ending encryptLastId()")
+
+	return encryptedString
+}
+
+func stringFromRawValue(rawId bson.RawValue) string {
+	objectID := rawId.ObjectID().String()
+	lastId := strings.Split(objectID, "\"")
+
+	return lastId[1]
 }
 
 func matchPipelineBuilder(sender string, startingId string) bson.M {

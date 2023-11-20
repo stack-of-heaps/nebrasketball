@@ -4,19 +4,14 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"nebrasketball/dbAccessor"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/text/cases"
@@ -27,20 +22,19 @@ type ReturnMessage struct {
 	Sender    string
 	Timestamp int
 	Content   string
-	Photo     dbAccessor.Photo
-	Reactions []dbAccessor.Reaction
-	Share     dbAccessor.Share
+	Photo     Photo
+	Reactions []Reaction
+	Share     Share
 	Type      string
 }
 
 type ServerResponse struct {
-	MessageResults dbAccessor.Messages
+	MessageResults Messages
 	Error          string
 	LastID         string
 }
 
 const (
-	KeyPassPhrase             string = "fjklj4kj12414980a9fasdvklavn!@$1"
 	MalformedPagedBySenderURL string = "URL should look like '...?sender=example%20name&startAt=a8890ef6b...'"
 	SenderEmpty               string = "URL 'sender' parameter is empty"
 )
@@ -49,7 +43,7 @@ func createEmptyServerResponseWithError(err string) ServerResponse {
 
 	return ServerResponse{
 		Error:          err,
-		MessageResults: dbAccessor.Messages{},
+		MessageResults: Messages{},
 		LastID:         ""}
 }
 
@@ -90,41 +84,6 @@ func getPagedQueryTerms(r *http.Request) (sender string, startingId string, resp
 	return sender, startingId, ServerResponse{}
 }
 
-func encryptLastId(lastId string) string {
-
-	fmt.Println("Beginning encryptLastId()")
-
-	// Generate AES cipher with 32 byte passphrase
-	aesCipher, err := aes.NewCipher([]byte(KeyPassPhrase))
-
-	if err != nil {
-		fmt.Println("Error in encryptLastId(): ", err)
-	}
-
-	// GCM "Galois/Counter Mode": Symmetric Keyy cryptographic block cipher
-	gcm, err := cipher.NewGCM(aesCipher)
-	if err != nil {
-		fmt.Println("Error in encryptLastId(): ", err)
-	}
-
-	// Nonce is literally a "one off" byte array which will be populated by a random sequence below.
-	// The nonce is prepended/appended to the cipher (?) and is used in deciphering
-	nonce := make([]byte, gcm.NonceSize())
-
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		fmt.Println("Error in io.ReadFull: ", err)
-	}
-
-	encryptedByteArray := gcm.Seal(nonce, nonce, []byte(lastId), nil)
-
-	// Convert to Base64 to ensure we can transmit via HTTP without error or corruption
-	encryptedString := base64.StdEncoding.EncodeToString(encryptedByteArray)
-
-	fmt.Println("Ending encryptLastId()")
-
-	return encryptedString
-}
-
 func decryptLastId(encLastId string) string {
 
 	fmt.Println("Beginning decryptLastId()")
@@ -162,19 +121,23 @@ func decryptLastId(encLastId string) string {
 
 }
 
-func stringFromRawValue(rawId bson.RawValue) string {
-	objectID := rawId.ObjectID().String()
-	lastId := strings.Split(objectID, "\"")
-
-	return lastId[1]
-}
-
 func pagedMessagesBySender(s *MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		returnObject := pagedMessagesLogic(s, r)
+		sender, startingId, errorResponse := getPagedQueryTerms(r)
 
-		returnJson, err := json.Marshal(returnObject)
+		if errorResponse.Error != "" {
+			w.Write([]byte(errorResponse.Error))
+		}
+
+		messages, encryptedLastId := pagedMessagesLogic(s, sender, startingId)
+
+		response := ServerResponse{
+			Error:          "",
+			MessageResults: messages,
+			LastID:         encryptedLastId}
+
+		returnJson, err := json.Marshal(response)
 
 		if err != nil {
 			fmt.Println("Error converted pagedMessagesLogic() response to JSON: ", err)
@@ -184,7 +147,7 @@ func pagedMessagesBySender(s *MongoClient) http.Handler {
 	})
 }
 
-func craftReturnMessage(objIn dbAccessor.Message) ReturnMessage {
+func craftReturnMessage(objIn Message) ReturnMessage {
 
 	objIn.Photos = handleMediaPath(objIn.Photos)
 
@@ -212,10 +175,9 @@ func randomMessageBySender(s *MongoClient) http.Handler {
 
 		q := r.URL.Query()["participant"]
 		sender := capitalizeName(q[0])
+		message := getMessages(s, sender, "participant", true)
 
-		var message = dbAccessor.getMessages(s, "participant", q, true)
-
-		jAllMessages, _ := json.Marshal(allMessages)
+		jAllMessages, _ := json.Marshal(message)
 		w.Write(jAllMessages)
 	})
 }
