@@ -10,8 +10,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/text/cases"
@@ -182,6 +184,44 @@ func randomMessageBySender(s *MongoClient) http.Handler {
 	})
 }
 
+// Possible query params:
+// - FromDate (datetime)
+// - ToDate (datetime)
+// - random (bool)
+// - pageStart
+// - pageEnd
+// - pageSize
+func newGetMessages(s *MongoClient) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		queryParams := r.Url.Query()
+		var randomize bool
+
+		randomQueryParam := queryParams["Random"]
+
+		if randomQueryParam != "" {
+			boolVal, err := strconv.ParseBool(randomQueryParam)
+			if err != nil {
+				randomize = false
+			}
+			randomize = boolVal
+		}
+
+		getMessagesRequest := GetMessagesRequest{
+			Name:      queryParams["Name"],
+			Random:    randomize,
+			FromDate:  queryParams["fromDate"],
+			ToDate:    queryParams["toDate"],
+			PageSize:  queryParams["pageSize"],
+			PageStart: queryParams["pageStart"],
+			PageEnd:   queryParams["pageEnd"],
+		}
+
+		allMessages := dbGetMessages(s, getMessagesRequest)
+
+	})
+}
+
 func getPort() string {
 
 	port := os.Getenv("PORT")
@@ -209,15 +249,37 @@ func main() {
 	collection := client.Database("nebrasketball").Collection("messages")
 	server := &MongoClient{db: client, col: collection}
 
-	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.Handle("/random", randomMessage(server))
-	http.Handle("/randsender", randomMessageBySender(server))
-	http.Handle("/getallfromsender", allMessagesBySender(server))
-	http.Handle("/getpagedfromsender", pagedMessagesBySender(server))
+	router := mux.NewRouter()
+
+	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+
+	router.Handle("/", http.FileServer(http.Dir(("./static"))))
+
+	// Possible query params:
+	// - FromDate (datetime)
+	// - ToDate (datetime)
+	// - random (bool)
+	// - pageStart
+	// - pageEnd
+	// - number
+	router.Handle("/messages/{userName}", newGetMessages(server)).Methods("GET")
+	router.Handle("/random", randomMessage(server))
+
+	router.Handle("/randsender", randomMessageBySender(server))
+	router.Handle("/getallfromsender", allMessagesBySender(server))
+	router.Handle("/getpagedfromsender", pagedMessagesBySender(server))
 
 	port := getPort()
 	log.Printf("Listening on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	}
+
+	log.Fatal(srv.ListenAndServe())
 }

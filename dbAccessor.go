@@ -20,6 +20,16 @@ const (
 	KeyPassPhrase string = "fjklj4kj12414980a9fasdvklavn!@$1"
 )
 
+type GetMessagesRequest struct {
+	Name      string
+	Random    bool
+	FromDate  primitive.DateTime
+	ToDate    primitive.DateTime
+	PageStart int
+	PageEnd   int
+	PageSize  int
+}
+
 type Message struct {
 	Sender    string
 	Timestamp int
@@ -178,11 +188,9 @@ func getPipeline(category string, queryToMatch string, isRandom bool) []primitiv
 		bson.D{{"$sample", bson.D{{"size", 1}}}}}
 }
 
-func getMessages(
+func dbGetMessages(
 	mongoClient *MongoClient,
-	category string,
-	queryToMatch string,
-	isRandom bool) []Message {
+	getMessageRequest GetMessagesRequest) []Mesage {
 
 	pipeline := getPipeline(category, queryToMatch, isRandom)
 	cursor, _ := mongoClient.col.Aggregate(context.Background(), pipeline)
