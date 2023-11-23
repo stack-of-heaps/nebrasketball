@@ -1,21 +1,13 @@
 package main
 
 import (
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
-	"strconv"
-	"time"
 
-	"github.com/gorilla/mux"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -182,104 +174,4 @@ func randomMessageBySender(s *MongoClient) http.Handler {
 		jAllMessages, _ := json.Marshal(message)
 		w.Write(jAllMessages)
 	})
-}
-
-// Possible query params:
-// - FromDate (datetime)
-// - ToDate (datetime)
-// - random (bool)
-// - pageStart
-// - pageEnd
-// - pageSize
-func newGetMessages(s *MongoClient) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		queryParams := r.Url.Query()
-		var randomize bool
-
-		randomQueryParam := queryParams["Random"]
-
-		if randomQueryParam != "" {
-			boolVal, err := strconv.ParseBool(randomQueryParam)
-			if err != nil {
-				randomize = false
-			}
-			randomize = boolVal
-		}
-
-		getMessagesRequest := GetMessagesRequest{
-			Name:      queryParams["Name"],
-			Random:    randomize,
-			FromDate:  queryParams["fromDate"],
-			ToDate:    queryParams["toDate"],
-			PageSize:  queryParams["pageSize"],
-			PageStart: queryParams["pageStart"],
-			PageEnd:   queryParams["pageEnd"],
-		}
-
-		allMessages := dbGetMessages(s, getMessagesRequest)
-
-	})
-}
-
-func getPort() string {
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080" // Google services wants 8080 or will decide for us.
-		log.Printf("Defaulting to port %s", port)
-	}
-
-	return port
-}
-
-func main() {
-
-	// TODO: SET VIA CONFIGURATION
-	//mongoURI := "mongodb://localhost:27017"
-	mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-
-	if err != nil {
-		fmt.Println("Error connecting to mongo DB: ", err)
-	}
-
-	defer cancel()
-	collection := client.Database("nebrasketball").Collection("messages")
-	server := &MongoClient{db: client, col: collection}
-
-	router := mux.NewRouter()
-
-	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-	})
-
-	router.Handle("/", http.FileServer(http.Dir(("./static"))))
-
-	// Possible query params:
-	// - FromDate (datetime)
-	// - ToDate (datetime)
-	// - random (bool)
-	// - pageStart
-	// - pageEnd
-	// - number
-	router.Handle("/messages/{userName}", newGetMessages(server)).Methods("GET")
-	router.Handle("/random", randomMessage(server))
-
-	router.Handle("/randsender", randomMessageBySender(server))
-	router.Handle("/getallfromsender", allMessagesBySender(server))
-	router.Handle("/getpagedfromsender", pagedMessagesBySender(server))
-
-	port := getPort()
-	log.Printf("Listening on port %s", port)
-
-	srv := &http.Server{
-		Handler:      router,
-		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
-		WriteTimeout: 10 * time.Second,
-		ReadTimeout:  10 * time.Second,
-	}
-
-	log.Fatal(srv.ListenAndServe())
 }

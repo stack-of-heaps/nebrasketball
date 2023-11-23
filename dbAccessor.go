@@ -13,7 +13,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -38,11 +37,6 @@ type Message struct {
 	Reactions []Reaction
 	Share     Share
 	Type      string
-}
-
-type MongoClient struct {
-	db  *mongo.Client
-	col *mongo.Collection
 }
 
 type Participants struct {
