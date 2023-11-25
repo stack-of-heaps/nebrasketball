@@ -19,16 +19,6 @@ const (
 	KeyPassPhrase string = "fjklj4kj12414980a9fasdvklavn!@$1"
 )
 
-type GetMessagesRequest struct {
-	Name      string
-	Random    bool
-	FromDate  primitive.DateTime
-	ToDate    primitive.DateTime
-	PageStart int
-	PageEnd   int
-	PageSize  int
-}
-
 type Message struct {
 	Sender    string
 	Timestamp int
@@ -96,11 +86,36 @@ func pagedMessagesLogic(s *MongoClient, sender string, startingId string) (messa
 		rawId = cursor.Current.Lookup("_id")
 	}
 
-	lastId := stringFromRawValue(rawId)
+	// TODO:
+	// Is this really necessary?
+	objectID := rawId.ObjectID().String()
+	lastId := strings.Split(objectID, "\"")[1]
 
 	encryptedLastId = encryptLastId(lastId)
 
 	return messageBatch, encryptedLastId
+}
+
+func decryptId(encryptedId string) string {
+	c, err := aes.NewCipher([]byte(KeyPassPhrase))
+	if err != nil {
+		panic(err)
+	}
+
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		panic(err)
+	}
+
+	nonceSize := gcm.NonceSize()
+
+	nonce, encryptedId := encryptedId[:nonceSize], encryptedId[nonceSize:]
+	decryptedId, err := gcm.Open(nil, []byte(nonce), []byte(encryptedId), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(decryptedId)
 }
 
 func encryptLastId(lastId string) string {
@@ -136,13 +151,6 @@ func encryptLastId(lastId string) string {
 	fmt.Println("Ending encryptLastId()")
 
 	return encryptedString
-}
-
-func stringFromRawValue(rawId bson.RawValue) string {
-	objectID := rawId.ObjectID().String()
-	lastId := strings.Split(objectID, "\"")
-
-	return lastId[1]
 }
 
 func matchPipelineBuilder(sender string, startingId string) bson.M {

@@ -13,7 +13,7 @@ import (
 )
 
 type GetMessagesRequest struct {
-	Sender      string
+	Name        string
 	Random      bool
 	FromDate    string
 	ToDate      string
@@ -81,9 +81,7 @@ func newGetMessages(s *MongoClient) http.Handler {
 
 		queryParams := r.URL.Query()
 
-		randomQueryParam := queryParams.Get("random")
-
-		randomize, err := strconv.ParseBool(randomQueryParam)
+		randomize, err := strconv.ParseBool(queryParams.Get("random"))
 		if err != nil {
 			randomize = false
 		}
@@ -113,6 +111,13 @@ func newGetMessages(s *MongoClient) http.Handler {
 			PageEnd:   int(pageEnd),
 		}
 
-		allMessages := dbGetMessages(s, getMessagesRequest)
+		// TEMP
+		senderName := queryParams.Get("name")
+
+		message := GetRandomMessage(s, senderName)
+
+		jsonMessage, err := json.Marshal(message)
+
+		w.Write(jsonMessage)
 	})
 }
