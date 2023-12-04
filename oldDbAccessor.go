@@ -96,27 +96,6 @@ func pagedMessagesLogic(s *MongoClient, sender string, startingId string) (messa
 	return messageBatch, encryptedLastId
 }
 
-func decryptId(encryptedId string) string {
-	c, err := aes.NewCipher([]byte(KeyPassPhrase))
-	if err != nil {
-		panic(err)
-	}
-
-	gcm, err := cipher.NewGCM(c)
-	if err != nil {
-		panic(err)
-	}
-
-	nonceSize := gcm.NonceSize()
-
-	nonce, encryptedId := encryptedId[:nonceSize], encryptedId[nonceSize:]
-	decryptedId, err := gcm.Open(nil, []byte(nonce), []byte(encryptedId), nil)
-	if err != nil {
-		panic(err)
-	}
-
-	return string(decryptedId)
-}
 
 func encryptLastId(lastId string) string {
 
@@ -192,7 +171,7 @@ func getPipeline(category string, queryToMatch string, isRandom bool) []primitiv
 
 func dbGetMessages(
 	mongoClient *MongoClient,
-	getMessageRequest GetMessagesRequest) []Mesage {
+	getMessageRequest GetMessagesRequest) []Message {
 
 	pipeline := getPipeline(category, queryToMatch, isRandom)
 	cursor, _ := mongoClient.col.Aggregate(context.Background(), pipeline)
