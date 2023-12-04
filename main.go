@@ -1,177 +1,130 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/gorilla/mux"
 )
 
-type ReturnMessage struct {
-	Sender    string
-	Timestamp int
-	Content   string
-	Photo     Photo
-	Reactions []Reaction
-	Share     Share
-	Type      string
+type GetMessagesRequest struct {
+	Name        string
+	Random      bool
+	FromDate    string
+	ToDate      string
+	MessageType string
+	PageStart   int
+	PageEnd     int
+	PageSize    int
 }
 
-type ServerResponse struct {
-	MessageResults Messages
-	Error          string
-	LastID         string
+func main() {
+	mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+
+	defer cancel()
+	collection := client.Database("nebrasketball").Collection("messages")
+	messagesAccessor := &MessagesAccessor{Messages: collection}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+
+	router.Handle("/", http.FileServer(http.Dir(("./static"))))
+
+	// Possible query params:
+	// - FromDate (datetime)
+	// - ToDate (datetime)
+	// - random (bool)
+	// - pageStart
+	// - pageEnd
+	// - number
+	router.Handle("/messages/random", GetRandomMessage(messagesAccessor)).Methods("GET")
+	// router.Handle("/sender/{sender}/messages", newGetMessages(dbClient)).Methods("GET")
+	// router.Handle("/sender/{sender}/type/{messageType}/messages", newGetMessages(dbClient)).Methods("GET")
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Google services wants 8080 or will decide for us.
+	}
+	log.Printf("Listening on port %s", port)
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
+	}
+
+	log.Fatal(srv.ListenAndServe())
 }
 
-const (
-	MalformedPagedBySenderURL string = "URL should look like '...?sender=example%20name&startAt=a8890ef6b...'"
-	SenderEmpty               string = "URL 'sender' parameter is empty"
-)
+func GetRandomMessage(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		message := messagesAccessor.GetRandomMessage()
+		json, _ := json.Marshal(message)
 
-func createEmptyServerResponseWithError(err string) ServerResponse {
-
-	return ServerResponse{
-		Error:          err,
-		MessageResults: Messages{},
-		LastID:         ""}
+		w.Write(json)
+	}
 }
 
-// First string 	= sender
-// Second string 	= startingId (if any)
-// If ServerResponse != nil -> Return it, because we have an error
+// Possible query params:
+// - FromDate (datetime)
+// - ToDate (datetime)
+// - random (bool)
+// - pageStart
+// - pageEnd
+// - pageSize
+func GetMessages(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 
-func getPagedQueryTerms(r *http.Request) (sender string, startingId string, response ServerResponse) {
+		queryParams := r.URL.Query()
 
-	query := r.URL.Query()
-
-	if len(query) == 0 {
-		responseObject := createEmptyServerResponseWithError(MalformedPagedBySenderURL)
-		return "", "", responseObject
-	}
-
-	senderQueryParam := query["sender"]
-	if len(senderQueryParam) == 0 {
-
-		responseObject := createEmptyServerResponseWithError(SenderEmpty)
-		return "", "", responseObject
-	}
-
-	sender = senderQueryParam[0]
-
-	if sender == "" {
-		responseObject := createEmptyServerResponseWithError(SenderEmpty)
-		return "", "", responseObject
-	}
-
-	startingIdQ := query["startAt"]
-	if len(startingIdQ) == 0 {
-		startingId = ""
-	} else {
-		startingId = startingIdQ[0]
-	}
-
-	return sender, startingId, ServerResponse{}
-}
-
-func decryptLastId(encLastId string) string {
-
-	fmt.Println("Beginning decryptLastId()")
-
-	encLastIdByteArray, err := base64.StdEncoding.DecodeString(encLastId)
-
-	if err != nil {
-		fmt.Println("Error in StdEncoding.DecodeString: ", err)
-	}
-
-	aesCipher, err := aes.NewCipher([]byte(KeyPassPhrase))
-
-	if err != nil {
-		fmt.Println("Error in decryptLastId(): ", err)
-	}
-
-	gcm, err := cipher.NewGCM(aesCipher)
-	if err != nil {
-		fmt.Println("Error in encryptLastId(): ", err)
-	}
-
-	nonceSize := gcm.NonceSize()
-
-	nonce, cipherText := encLastIdByteArray[:nonceSize], encLastIdByteArray[nonceSize:]
-
-	decryptedLastId, err := gcm.Open(nil, []byte(nonce), []byte(cipherText), nil)
-
-	if err != nil {
-		fmt.Println("Error in gcm.Open: ", err)
-	}
-
-	fmt.Println("Ending decryptLastId()")
-
-	return string(decryptedLastId)
-
-}
-
-func pagedMessagesBySender(s *MongoClient) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		sender, startingId, errorResponse := getPagedQueryTerms(r)
-
-		if errorResponse.Error != "" {
-			w.Write([]byte(errorResponse.Error))
-		}
-
-		messages, encryptedLastId := pagedMessagesLogic(s, sender, startingId)
-
-		response := ServerResponse{
-			Error:          "",
-			MessageResults: messages,
-			LastID:         encryptedLastId}
-
-		returnJson, err := json.Marshal(response)
-
+		randomize, err := strconv.ParseBool(queryParams.Get("random"))
 		if err != nil {
-			fmt.Println("Error converted pagedMessagesLogic() response to JSON: ", err)
+			randomize = false
 		}
 
-		w.Write(returnJson)
-	})
-}
+		pageSize, err := strconv.ParseInt(queryParams.Get("pageSize"), 10, 16)
+		if err != nil {
+			pageSize = 0
+		}
 
-func craftReturnMessage(objIn Message) ReturnMessage {
+		pageStart, err := strconv.ParseInt(queryParams.Get("pageStart"), 10, 16)
+		if err != nil {
+			pageStart = 0
+		}
 
-	objIn.Photos = handleMediaPath(objIn.Photos)
+		pageEnd, err := strconv.ParseInt(queryParams.Get("pageEnd"), 10, 16)
+		if err != nil {
+			pageEnd = 0
+		}
 
-	newMessage := ReturnMessage{
-		Sender:    objIn.Sender,
-		Content:   objIn.Content,
-		Timestamp: objIn.Timestamp,
-		Share:     objIn.Share,
-		Reactions: objIn.Reactions,
+		getMessagesRequest := GetMessagesRequest{
+			Name:      queryParams.Get("name"),
+			Random:    randomize,
+			FromDate:  queryParams.Get("fromDate"),
+			ToDate:    queryParams.Get("toDate"),
+			PageSize:  int(pageSize),
+			PageStart: int(pageStart),
+			PageEnd:   int(pageEnd),
+		}
+
+		// TEMP
+		messages := messagesAccessor.GetMessages((getMessagesRequest))
+		messagesJson, err := json.Marshal(messages)
+
+		w.Write(messagesJson)
 	}
-
-	if len(objIn.Photos) > 0 {
-		newMessage.Photo = objIn.Photos[0]
-	}
-
-	return newMessage
-}
-
-func capitalizeName(name string) string {
-	return cases.Title(language.English).String(name)
-}
-
-func randomMessageBySender(s *MongoClient) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		q := r.URL.Query()["participant"]
-		sender := capitalizeName(q[0])
-		message := getMessages(s, sender, "participant", true)
-
-		jAllMessages, _ := json.Marshal(message)
-		w.Write(jAllMessages)
-	})
 }
