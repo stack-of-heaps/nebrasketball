@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,20 +18,19 @@ import (
 )
 
 type GetMessagesRequest struct {
-	Name        string
-	Random      bool
-	FromDate    string
-	ToDate      string
-	MessageType string
-	PageStart   int
-	PageEnd     int
-	PageSize    int
+	Sender   string
+	Type     string
+	FromDate string
+	ToDate   string
+	Page     int
+	PageSize int
 }
 
 func main() {
-	mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	// mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
+	mongoUri := "mongodb://localhost:27017"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 
 	defer cancel()
 	collection := client.Database("nebrasketball").Collection("messages")
@@ -47,12 +47,13 @@ func main() {
 	// - FromDate (datetime)
 	// - ToDate (datetime)
 	// - random (bool)
-	// - pageStart
-	// - pageEnd
-	// - number
+	// - page
+	// - pageSize
+	// - type
+	// - gifs, photos, videos, shares
 	router.Handle("/messages/random", GetRandomMessage(messagesAccessor)).Methods("GET")
+	router.Handle("/conversations/random", GetConversation(messagesAccessor)).Methods("GET")
 	// router.Handle("/sender/{sender}/messages", newGetMessages(dbClient)).Methods("GET")
-	// router.Handle("/sender/{sender}/type/{messageType}/messages", newGetMessages(dbClient)).Methods("GET")
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -79,6 +80,29 @@ func GetRandomMessage(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 	}
 }
 
+func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		query := r.URL.Query()
+		rawParticipants := query.Get("participants")
+		if rawParticipants == "" {
+			errorString := "no participants provided in query string"
+			w.WriteHeader(400)
+			w.Write([]byte(errorString))
+		}
+
+		fmt.Print("raw: ", rawParticipants)
+		participants := strings.Split(rawParticipants, ",")
+
+		fmt.Print("count: ", len(participants))
+
+		messages := messagesAccessor.GetConversation(participants)
+		json, _ := json.Marshal(messages)
+
+		w.Write(json)
+	}
+}
+
 // Possible query params:
 // - FromDate (datetime)
 // - ToDate (datetime)
@@ -91,34 +115,23 @@ func GetMessages(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 
 		queryParams := r.URL.Query()
 
-		randomize, err := strconv.ParseBool(queryParams.Get("random"))
-		if err != nil {
-			randomize = false
-		}
-
-		pageSize, err := strconv.ParseInt(queryParams.Get("pageSize"), 10, 16)
+		pageSize, err := strconv.Atoi(queryParams.Get("pageSize"))
 		if err != nil {
 			pageSize = 0
 		}
 
-		pageStart, err := strconv.ParseInt(queryParams.Get("pageStart"), 10, 16)
+		page, err := strconv.Atoi(queryParams.Get("page"))
 		if err != nil {
-			pageStart = 0
-		}
-
-		pageEnd, err := strconv.ParseInt(queryParams.Get("pageEnd"), 10, 16)
-		if err != nil {
-			pageEnd = 0
+			page = 0
 		}
 
 		getMessagesRequest := GetMessagesRequest{
-			Name:      queryParams.Get("name"),
-			Random:    randomize,
-			FromDate:  queryParams.Get("fromDate"),
-			ToDate:    queryParams.Get("toDate"),
-			PageSize:  int(pageSize),
-			PageStart: int(pageStart),
-			PageEnd:   int(pageEnd),
+			Sender:   queryParams.Get("sender"),
+			FromDate: queryParams.Get("fromDate"),
+			ToDate:   queryParams.Get("toDate"),
+			PageSize: pageSize,
+			Page:     page,
+			Type:     queryParams.Get("type"),
 		}
 
 		// TEMP
