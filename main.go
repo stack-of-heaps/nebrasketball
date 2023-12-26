@@ -93,8 +93,13 @@ func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 
 		fmt.Print("raw: ", rawParticipants)
 		participants := strings.Split(rawParticipants, ",")
+		fmt.Print("participants: ", participants)
 
-		fmt.Print("count: ", len(participants))
+		testSlice := []string{"hello"}
+		for len(participants) != len(testSlice) {
+			fmt.Println("Not equal")
+			testSlice = append(testSlice, "hi")
+		}
 
 		messages := messagesAccessor.GetConversation(participants)
 		json, _ := json.Marshal(messages)

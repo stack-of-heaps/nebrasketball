@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+type M = bson.M
 
 type Participants struct {
 	Name string
@@ -60,57 +63,68 @@ type MessagesAccessor struct {
 }
 
 func (messagesAccessor *MessagesAccessor) GetConversation(participants []string) []Message {
-	messages := []Message{}
-	// cursor, _ := messagesAccessor.Messages.Find(context.Background(), bson.M{"sender_name": bson.M{"$in": participants}})
-
 	// Adapt window function
 	// use this link
 	// https://stackoverflow.com/questions/12012253/finding-the-next-document-in-mongodb
-	pipeline := []bson.M{
+	pipeline := []M{
 		{
-			"$match": bson.M{
-				"sender_name": bson.M{
+			"$match": M{
+				"sender_name": M{
 					"$in": participants,
 				},
 			},
 		},
-		{
-			"$setWindowFields": bson.M{
-				"sortBy": bson.M{"_id": 1},
-				"output": bson.M{
-					"next": bson.M{
-						"$push": "$$ROOT", "window": bson.M{"documents": []int{1, 1}},
-					},
-				},
-			},
-		},
+		M{"$sample": M{"size": 1}},
 	}
 
-	// pipeline_ := []bson.M{"$setWindowFields": bson.M{"partitionBy": "timestamp_ms", "sortBy": bson.M{"timestamp_ms": 1}}, "output": bson.M{"previous": bson.M{"$push": "$$ROOT"}}}
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
 	if err != nil {
-		fmt.Print("Mongo error: ", err)
+		fmt.Print("Mongo error in GET CONVERSATIONS: ", err)
 	}
 
-	cursor.Next(context.Background())
-
-	/*
-		for i := 0; i < 5; i++ {
-			message := Message{}
-			cursor.Next(context.Background())
-			cursor.Decode(&message)
-			messages = append(messages, message)
-		}
-	*/
+	const MaxAttempts = 5
+	foundParticipants := []string{}
+	messages := []Message{}
 	message := Message{}
-
-	poop, _ := cursor.Current.Elements()
-	fmt.Print("ELEMENTS: ", poop)
-
+	cursor.Next(context.Background())
 	cursor.Decode(&message)
-	messages = append(messages, message)
+	counter := 0
+	foundParticipants = append(foundParticipants, message.Sender)
+	fmt.Println("BEFORE LOOP FOUNDPARTICIPANTS: ", foundParticipants)
+	for len(foundParticipants) != len(participants) {
+		fmt.Println("COUNTER VALUE: ", counter)
+		counter += 1
 
-	fmt.Print(messages)
+		if counter == MaxAttempts {
+			break
+		}
+
+		backwardsMessages := messagesAccessor.GoBackwards(message.Timestamp, int64(counter)*5*60)
+		fmt.Println("BACKWARDS MESSAGES LENGTH: ", len(backwardsMessages))
+		for _, message := range backwardsMessages {
+			if slices.Contains(participants, message.Sender) && !slices.Contains(foundParticipants, message.Sender) {
+				foundParticipants = append(foundParticipants, message.Sender)
+			}
+
+			messages = append(messages, backwardsMessages...)
+		}
+
+		forwardsMessages := messagesAccessor.GoForwards(message.Timestamp, int64(counter)*5*60)
+		fmt.Println("FORWARDS MESSAGES LENGTH: ", len(forwardsMessages))
+		for _, message := range forwardsMessages {
+			if slices.Contains(participants, message.Sender) && !slices.Contains(foundParticipants, message.Sender) {
+				foundParticipants = append(foundParticipants, message.Sender)
+			}
+
+			messages = append(messages, forwardsMessages...)
+		}
+
+		fmt.Println("FOUNDPARTICIPANTS END OF LOOP: ", counter, foundParticipants)
+		fmt.Println("LENGTH FOUNDPARTICIPANTS != LENGTH PARTICIPANTS: ", len(participants) != len(foundParticipants))
+	}
+
+	fmt.Println("FOUND PARTICIPANTS: ", foundParticipants)
+	// fmt.Print(messages)
 
 	return messages
 
@@ -127,6 +141,67 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string)
 	// If all match, contract by 15 mins
 	// ... Just an example of how this could be done.
 	// Need to consider when you would scrap initial random message search and start with a new random one
+}
+
+func (messagesAccessor *MessagesAccessor) GoBackwards(startTime int64, seconds int64) []Message {
+	greaterThanTimestamp := startTime - (seconds * 1000)
+	if greaterThanTimestamp < 0 {
+		greaterThanTimestamp = 0
+	}
+
+	pipeline := []M{
+		{
+			"$match": M{
+				"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime},
+			},
+		},
+		{
+			"$sort": M{"timestamp_ms": -1},
+		},
+	}
+
+	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
+	return GetAllMessages(cursor, err, "In GoBackwards()")
+}
+
+func (messagesAccessor *MessagesAccessor) GoForwards(startTime int64, seconds int64) []Message {
+	lessThanTimestamp := startTime + (seconds * 1000)
+
+	pipeline := []M{
+		{
+			"$match": M{
+				"timestamp_ms": M{"$gt": startTime, "$lt": lessThanTimestamp},
+			},
+		},
+		{
+			"$sort": M{"timestamp_ms": 1},
+		},
+	}
+
+	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
+	return GetAllMessages(cursor, err, "In GoForwards()")
+}
+
+func GetAllMessages(cursor *mongo.Cursor, err error, loggingMessage string) []Message {
+	if err != nil {
+		switch err {
+		case mongo.ErrNoDocuments:
+			fmt.Println("No documents found going backwards!")
+			return []Message{}
+		default:
+			fmt.Println(loggingMessage, err)
+		}
+	}
+
+	messages := []Message{}
+	for cursor.Next(context.Background()) {
+		message := Message{}
+		cursor.Next(context.Background())
+		cursor.Decode(&message)
+		messages = append(messages, message)
+	}
+
+	return messages
 }
 
 func (messagesAccessor *MessagesAccessor) GetRandomMessage() Message {
