@@ -82,68 +82,57 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string)
 		fmt.Print("Mongo error in GET CONVERSATIONS: ", err)
 	}
 
-	const MaxAttempts = 5
-	foundParticipants := []string{}
-	messages := []Message{}
 	message := Message{}
 	cursor.Next(context.Background())
 	cursor.Decode(&message)
+
+	messages := []Message{}
+	MaxAttempts := 5
 	counter := 0
-	foundParticipants = append(foundParticipants, message.Sender)
-	fmt.Println("BEFORE LOOP FOUNDPARTICIPANTS: ", foundParticipants)
-	for len(foundParticipants) != len(participants) {
-		fmt.Println("COUNTER VALUE: ", counter)
+	shouldGoForwards := true
+	shouldGoBackwards := true
+
+	goForwardsTimestamp := message.Timestamp
+	goBackwardsTimestamp := message.Timestamp
+	for counter <= MaxAttempts {
 		counter += 1
+		fmt.Println("COUNTER: ", counter)
 
-		if counter == MaxAttempts {
-			break
+		for shouldGoForwards {
+			shouldGoForwards, goForwardsTimestamp = messagesAccessor.GoForwards(goForwardsTimestamp, int64(counter)*10*60, &participants, &messages)
 		}
 
-		backwardsMessages := messagesAccessor.GoBackwards(message.Timestamp, int64(counter)*5*60)
-		fmt.Println("BACKWARDS MESSAGES LENGTH: ", len(backwardsMessages))
-		for _, message := range backwardsMessages {
-			if slices.Contains(participants, message.Sender) && !slices.Contains(foundParticipants, message.Sender) {
-				foundParticipants = append(foundParticipants, message.Sender)
-			}
-
-			messages = append(messages, backwardsMessages...)
+		for shouldGoBackwards {
+			shouldGoBackwards, goBackwardsTimestamp = messagesAccessor.GoBackwards(goBackwardsTimestamp, int64(counter)*10*60, &participants, &messages)
 		}
 
-		forwardsMessages := messagesAccessor.GoForwards(message.Timestamp, int64(counter)*5*60)
-		fmt.Println("FORWARDS MESSAGES LENGTH: ", len(forwardsMessages))
-		for _, message := range forwardsMessages {
-			if slices.Contains(participants, message.Sender) && !slices.Contains(foundParticipants, message.Sender) {
-				foundParticipants = append(foundParticipants, message.Sender)
-			}
+		if AllParticipantsFound(&participants, &messages) {
+			slices.SortFunc(messages, CompareTimestampValue)
 
-			messages = append(messages, forwardsMessages...)
+			return messages
 		}
-
-		fmt.Println("FOUNDPARTICIPANTS END OF LOOP: ", counter, foundParticipants)
-		fmt.Println("LENGTH FOUNDPARTICIPANTS != LENGTH PARTICIPANTS: ", len(participants) != len(foundParticipants))
 	}
 
-	fmt.Println("FOUND PARTICIPANTS: ", foundParticipants)
-	// fmt.Print(messages)
-
-	return messages
-
-	// Has to know how to get a grouping of messages
-	// Sender names (at least 2) OR timeframe
-	// PSEUDOCODE
-	// Start with arbitrary timeframe
-	// Find one name at random
-	// Expand time frame by 5 minutes
-	// If match, consider returning
-	// If additional name match, but not yet all, expand by 5 mins
-	// If no match, expand by 60 mins
-	// If all match, contract by 15 mins
-	// If all match, contract by 15 mins
-	// ... Just an example of how this could be done.
-	// Need to consider when you would scrap initial random message search and start with a new random one
+	return messagesAccessor.GetConversation(participants)
 }
 
-func (messagesAccessor *MessagesAccessor) GoBackwards(startTime int64, seconds int64) []Message {
+func AllParticipantsFound(participants *[]string, messages *[]Message) bool {
+	foundParticipants := []string{}
+	for _, value := range *messages {
+
+		if !slices.Contains(foundParticipants, value.Sender) {
+			foundParticipants = append(foundParticipants, value.Sender)
+		}
+
+		if len(foundParticipants) == len(*participants) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (messagesAccessor *MessagesAccessor) GoBackwards(startTime int64, seconds int64, participants *[]string, allMessages *[]Message) (bool, int64) {
 	greaterThanTimestamp := startTime - (seconds * 1000)
 	if greaterThanTimestamp < 0 {
 		greaterThanTimestamp = 0
@@ -155,18 +144,20 @@ func (messagesAccessor *MessagesAccessor) GoBackwards(startTime int64, seconds i
 				"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime},
 			},
 		},
-		{
-			"$sort": M{"timestamp_ms": -1},
-		},
+		{"$sort": M{"timestamp_ms": -1}},
+		{"$limit": 100},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
-	return GetAllMessages(cursor, err, "In GoBackwards()")
+	if err != nil {
+		fmt.Println("Error in gobackwards: ", err)
+	}
+
+	return GetConversationMessages(cursor, participants, allMessages, greaterThanTimestamp)
 }
 
-func (messagesAccessor *MessagesAccessor) GoForwards(startTime int64, seconds int64) []Message {
+func (messagesAccessor *MessagesAccessor) GoForwards(startTime int64, seconds int64, participants *[]string, allMessages *[]Message) (bool, int64) {
 	lessThanTimestamp := startTime + (seconds * 1000)
-
 	pipeline := []M{
 		{
 			"$match": M{
@@ -176,17 +167,38 @@ func (messagesAccessor *MessagesAccessor) GoForwards(startTime int64, seconds in
 		{
 			"$sort": M{"timestamp_ms": 1},
 		},
+		{
+			"$limit": 100,
+		},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
-	return GetAllMessages(cursor, err, "In GoForwards()")
+	if err != nil {
+		fmt.Println("error in go forwards: ", err)
+	}
+
+	return GetConversationMessages(cursor, participants, allMessages, lessThanTimestamp)
+}
+
+func GetConversationMessages(cursor *mongo.Cursor, participants *[]string, allMessages *[]Message, timestamp int64) (bool, int64) {
+	currentMessage := Message{}
+	for cursor.Next(context.Background()) {
+		cursor.Decode(&currentMessage)
+		if !slices.Contains(*participants, currentMessage.Sender) {
+			return false, timestamp
+		}
+
+		*allMessages = append(*allMessages, currentMessage)
+	}
+
+	return true, timestamp
 }
 
 func GetAllMessages(cursor *mongo.Cursor, err error, loggingMessage string) []Message {
 	if err != nil {
 		switch err {
 		case mongo.ErrNoDocuments:
-			fmt.Println("No documents found going backwards!")
+			fmt.Println("No documents found ", loggingMessage)
 			return []Message{}
 		default:
 			fmt.Println(loggingMessage, err)
@@ -236,6 +248,18 @@ func (messagesAccessor *MessagesAccessor) GetMessages(getMessagesRequest GetMess
 	}
 
 	return messages
+}
+
+func CompareTimestampValue(a, b Message) int {
+	if a.Timestamp > b.Timestamp {
+		return 1
+	}
+
+	if a.Timestamp == b.Timestamp {
+		return 0
+	}
+
+	return 0
 }
 
 func GetPipelineElement(elementKey string, elementValue string) bson.D {
