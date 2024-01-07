@@ -84,6 +84,19 @@ func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		query := r.URL.Query()
+
+		fuzzFactor := 0
+		fuzzFactorStr := query.Get("fuzzFactor")
+		if fuzzFactorStr != "" {
+			parsedFuzzFactor, err := strconv.ParseInt(fuzzFactorStr, 10, 64)
+
+			if err != nil {
+				fmt.Printf("cannot convert '%s' to int", fuzzFactorStr)
+			}
+
+			fuzzFactor = int(parsedFuzzFactor)
+		}
+
 		rawParticipants := query.Get("participants")
 		if rawParticipants == "" {
 			errorString := "no participants provided in query string"
@@ -92,7 +105,7 @@ func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 		}
 
 		participants := strings.Split(rawParticipants, ",")
-		messages := messagesAccessor.GetConversation(participants)
+		messages := messagesAccessor.GetConversation(participants, fuzzFactor)
 		json, _ := json.Marshal(messages)
 
 		w.Write(json)
