@@ -158,6 +158,7 @@ func (messagesAccessor *MessagesAccessor) goBackwards(
 	shouldContinue, greaterThanTimestamp := getConversationMessages(cursor, participants, allMessages, greaterThanTimestamp, fuzzFactor)
 
 	if shouldContinue {
+		wg.Add(1)
 		messagesAccessor.goBackwards(wg, greaterThanTimestamp, 5*60*1000, participants, allMessages, fuzzFactor)
 	}
 }
@@ -195,6 +196,7 @@ func (messagesAccessor *MessagesAccessor) goForwards(
 	shouldContinue, lessThanTimestamp := getConversationMessages(cursor, participants, allMessages, lessThanTimestamp, fuzzFactor)
 
 	if shouldContinue {
+		wg.Add(1)
 		messagesAccessor.goForwards(wg, lessThanTimestamp, 5*60*1000, participants, allMessages, fuzzFactor)
 	}
 }
