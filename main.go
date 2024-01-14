@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 )
 
 type GetMessagesRequest struct {
@@ -37,6 +38,7 @@ func main() {
 	messagesAccessor := &MessagesAccessor{Messages: collection}
 
 	router := mux.NewRouter()
+	handler := cors.Default().Handler(router)
 	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
@@ -62,7 +64,7 @@ func main() {
 	log.Printf("Listening on port %s", port)
 
 	srv := &http.Server{
-		Handler:      router,
+		Handler:      handler,
 		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
 		WriteTimeout: 10 * time.Second,
 		ReadTimeout:  10 * time.Second,
@@ -73,7 +75,10 @@ func main() {
 
 func GetRandomMessage(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		message := messagesAccessor.GetRandomMessage()
+
+		query := r.URL.Query()
+		participant := query.Get("participant")
+		message := messagesAccessor.GetRandomMessage(participant)
 		json, _ := json.Marshal(message)
 
 		w.Write(json)
