@@ -52,7 +52,6 @@ func CompareTimestampValue(a, b Message) int {
 }
 
 func (messagesAccessor *MessagesAccessor) GetRandomMessage() Message {
-
 	pipeline := []M{{"$sample": M{"size": 1}}}
 	cursor, _ := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
 	cursor.Next(context.Background())
@@ -83,8 +82,7 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string,
 
 	MaxAttempts := 5
 	counter := 0
-	forwardsMessages := []Message{}
-	backwardsMessages := []Message{}
+	messages := []Message{}
 
 	for counter <= MaxAttempts {
 		counter += 1
@@ -98,7 +96,7 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string,
 			startingMessage.Timestamp,
 			int64(counter)*10*60,
 			&participants,
-			&forwardsMessages,
+			&messages,
 			fuzzFactor)
 
 		go messagesAccessor.goBackwards(
@@ -106,12 +104,11 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string,
 			startingMessage.Timestamp,
 			int64(counter)*10*60,
 			&participants,
-			&backwardsMessages,
+			&messages,
 			fuzzFactor)
 
 		wg.Wait()
 
-		messages := append(backwardsMessages, forwardsMessages...)
 		if allParticipantsFound(&participants, &messages) {
 			slices.SortFunc(messages, compareTimestampValue)
 
@@ -119,6 +116,7 @@ func (messagesAccessor *MessagesAccessor) GetConversation(participants []string,
 		}
 	}
 
+	fmt.Println("No conversation found. Staritng GetConversation over again.")
 	return messagesAccessor.GetConversation(participants, fuzzFactor)
 }
 
@@ -210,20 +208,22 @@ func getConversationMessages(
 
 	const MaxFuzz = 5
 	fuzzCount := 0
-	for cursor.Next(context.Background()) && fuzzCount < MaxFuzz {
+	lastChance := false
+	for cursor.Next(context.Background()) {
 		currentMessage := Message{}
 		cursor.Decode(&currentMessage)
-		if fuzzFactor == 0 && !slices.Contains(*participants, currentMessage.Sender) {
-			return false, timestamp
-		} else {
-			fuzzCount++
+		if !slices.Contains(*participants, currentMessage.Sender) {
+			if fuzzFactor == 0 || lastChance {
+				return false, currentMessage.Timestamp
+			} else if fuzzCount < MaxFuzz {
+				fuzzCount++
+				if fuzzCount >= MaxFuzz {
+					lastChance = true
+				}
+			}
 		}
 
 		*allMessages = append(*allMessages, currentMessage)
-	}
-
-	if fuzzFactor != 0 {
-		return fuzzFactor >= MaxFuzz, timestamp
 	}
 
 	return true, timestamp
