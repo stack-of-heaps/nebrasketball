@@ -82,10 +82,9 @@ func GetRandomMessage(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 
 func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		query := r.URL.Query()
-
 		fuzzFactor := 0
+
 		fuzzFactorStr := query.Get("fuzzFactor")
 		if fuzzFactorStr != "" {
 			parsedFuzzFactor, err := strconv.ParseInt(fuzzFactorStr, 10, 64)
