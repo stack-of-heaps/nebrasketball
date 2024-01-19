@@ -1,83 +1,64 @@
 <script lang>
 	import { onMount } from 'svelte';
 
-	let messagePromise = getRandomMessage();
-	async function getRandomMessage() {
-		const response = await fetch('http://localhost:8080/messages/random');
-		const data = await response.json();
-		return data;
-	}
-
+	let loading = true;
 	let message = {};
-
-	/* notes
-	const message = 'Hello world' // Try edit me
-
-// Update header text
-document.querySelector('#header').innerHTML = message
-
-let test = "\\u00f0\\u009f\\u0098\\u0086"
-let test2 = test.split("\\u")
-for (let i = 1; i < test2.length; i++){
-  console.log("i, val: ", i, String.fromCharCode(test2[i]))
-}
-let test3 = unescape(test)
-console.log("test2: ", test2)
-console.log("test3: ", test3)
-let reg = new RegExp("([^\\u]+)")
-let test4 = test.match(reg)
-console.log('test4: ', test4)
-// Log to console
-console.log(message)
-*/
-	let experiment;
-	async function getRandomMessage2() {
+	async function getRandomMessage() {
+		loading = true;
 		const responseObject = await fetch('http://localhost:8080/messages/random').then((r) =>
 			r.json()
 		);
 
-		console.log('responseObject: ', responseObject);
-
-		let reactions = responseObject.Reactions;
-
-		if (reactions) {
-			let newString = reactions[0].Reaction.replace('/u', '');
-			console.log('newString: ', newString);
-			experiment = String.fromCodePoint(parseInt(newString));
-		}
-
+		let timestampAsDate = new Date(responseObject.Timestamp);
+		let messageDate = timestampAsDate.toDateString();
+		console.log(responseObject);
+		console.log(timestampAsDate.getHours());
+		let timeStr = timestampAsDate.toTimeString();
+		message.timestamp = responseObject.Timestamp;
+		message.time = `${messageDate} @ ${timeStr.slice(0, 5)}`;
 		message.content = responseObject.Content;
 		message.reactions = responseObject.Reactions;
 		message.sender = responseObject.Sender;
-		message.timestamp = new Date(responseObject.Timestamp);
+		message.reactions = responseObject.Reactions;
+		loading = false;
 	}
-	onMount(getRandomMessage2);
+
+	let context = [];
+	async function getContext(timestamp) {
+		const response = await fetch(`http://localhost:8080/context/${timestamp}`).then((r) =>
+			r.json()
+		);
+
+		console.log('context response: ', response);
+		for (let entry in response) {
+			context.push(entry);
+		}
+	}
+
+	onMount(getRandomMessage);
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://kit.svelte.dev">kit.svelte.dev</a> to read the documentation</p>
-
-{#await messagePromise}
+{#if loading}
 	<p>Getting random message...</p>
-{:then messageP}
-	<p>{messageP.Sender}</p>
-	<p>{messageP.Content}</p>
-	<p>{messageP.Timestamp}</p>
-	{#if messageP.Reactions}
-		<p>Experiment: {experiment}</p>
-		{#each messageP.Reactions as reaction}
-			<p>Actor: {reaction.Actor}</p>
-			<p>Reaction: {reaction.Reaction}</p>
+{:else}
+	<p>{message.sender}</p>
+	<p>{message.content}</p>
+	<p>{message.time}</p>
+	{#if message.reactions}
+		{#each message.reactions as reaction}
+			<p>{reaction.Actor} {reaction.Reaction}</p>
 		{/each}
 	{/if}
-{:catch error}
-	<p>Oops: {error}</p>
-{/await}
-
-{#if message}
-	<p>Test: {message.sender}</p>
-{:else}
-	<p>:(</p>
 {/if}
 
-<button on:click={() => (messagePromise = getRandomMessage())}> Explore the next planet </button>
+{#if context.length > 0}
+	<p>Context</p>
+	{#each context as c}
+		<p>{c}</p>
+	{/each}
+{/if}
+
+<button on:click={() => getRandomMessage()}> Get Random Message </button>
+<button disabled={message.timestamp !== undefined} on:click={() => getContext(message.timestamp)}>
+	Get Context
+</button>
