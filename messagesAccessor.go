@@ -18,6 +18,18 @@ type MessagesAccessor struct {
 	Messages *mongo.Collection
 }
 
+func getMessages(cursor *mongo.Cursor, messages *[]Message) {
+	for cursor.Next(context.Background()) {
+		currentMessage := Message{}
+		cursorErr := cursor.Decode(&currentMessage)
+		if cursorErr != nil {
+			panic("Error in cursor")
+		}
+
+		*messages = append(*messages, currentMessage)
+	}
+}
+
 func (messagesAccessor *MessagesAccessor) GetMessages(getMessagesRequest GetMessagesRequest) []Message {
 	pipeline := []bson.D{}
 
@@ -79,14 +91,70 @@ func (messagesAccessor *MessagesAccessor) GetRandomMessage(participant string) M
 	return message
 }
 
+func (messagesAccessor *MessagesAccessor) GetContext(timestamp int64) []Message {
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	previousMessages := []Message{}
+	subsequentMessages := []Message{}
+
+	go messagesAccessor.goBackwardsFixedOperation(&wg, timestamp, &previousMessages)
+	go messagesAccessor.goForwardsFixedOperation(&wg, timestamp, &subsequentMessages)
+
+	wg.Wait()
+
+	previousMessages = append(previousMessages, subsequentMessages...)
+	slices.SortFunc(previousMessages, compareTimestampValue)
+
+	return previousMessages
+}
+
+func (messagesAccessor *MessagesAccessor) goBackwardsFixedOperation(
+	wg *sync.WaitGroup,
+	startingTimestamp int64,
+	messages *[]Message) {
+	pipeline := []M{
+		{"$match": M{"timestamp_ms": M{"$lt": startingTimestamp}}},
+		{"$sort": M{"timestamp_ms": -1}},
+		{"$limit": 5},
+	}
+
+	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		fmt.Println("Error in goBackwardsFixedOperation: ", err)
+	}
+
+	getMessages(cursor, messages)
+	wg.Done()
+}
+
+func (messagesAccessor *MessagesAccessor) goForwardsFixedOperation(
+	wg *sync.WaitGroup,
+	startingTimestamp int64,
+	messages *[]Message) {
+	pipeline := []M{
+		{"$match": M{"timestamp_ms": M{"$gt": startingTimestamp}}},
+		{"$sort": M{"timestamp_ms": 1}},
+		{"$limit": 5},
+	}
+
+	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		fmt.Println("Error in goFowardsFixedOperatoin: ", err)
+	}
+
+	getMessages(cursor, messages)
+	wg.Done()
+}
+
 func (messagesAccessor *MessagesAccessor) GetConversation(participants []string, fuzzFactor int) []Message {
 	pipeline := []M{
 		{
-			"$match": M{
-				"sender_name": M{"$in": participants},
-			},
+			"$match": M{"sender_name": M{"$in": participants}},
 		},
-		{"$sample": M{"size": 1}},
+		{
+			"$sample": M{"size": 1},
+		},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
@@ -154,9 +222,7 @@ func (messagesAccessor *MessagesAccessor) goBackwards(
 
 	pipeline := []M{
 		{
-			"$match": M{
-				"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime},
-			},
+			"$match": M{"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime}},
 		},
 		{
 			"$sort": M{"timestamp_ms": -1},

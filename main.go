@@ -55,6 +55,7 @@ func main() {
 	// - gifs, photos, videos, shares
 	router.Handle("/messages/random", GetRandomMessage(messagesAccessor)).Methods("GET")
 	router.Handle("/conversations/random", GetConversation(messagesAccessor)).Methods("GET")
+	router.Handle("/messages/{timestamp}", GetContext(messagesAccessor)).Methods("GET")
 	// router.Handle("/sender/{sender}/messages", newGetMessages(dbClient)).Methods("GET")
 
 	port := os.Getenv("PORT")
@@ -112,6 +113,28 @@ func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 		messages := messagesAccessor.GetConversation(participants, fuzzFactor)
 		json, _ := json.Marshal(messages)
 
+		w.Write(json)
+	}
+}
+
+func GetContext(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		timestamp := mux.Vars(r)["timestamp"]
+		if timestamp == "nil" {
+			fmt.Printf("Timestamp received: %v", timestamp)
+			w.WriteHeader(400)
+		}
+
+		timestampAsInt, err := strconv.ParseInt(timestamp, 10, 64)
+
+		fmt.Print("Timestamp: ", timestampAsInt)
+
+		if err != nil {
+			w.WriteHeader(400)
+		}
+
+		context := messagesAccessor.GetContext(timestampAsInt)
+		json, _ := json.Marshal(context)
 		w.Write(json)
 	}
 }
