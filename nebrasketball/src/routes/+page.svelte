@@ -2,37 +2,56 @@
 	import { onMount } from 'svelte';
 
 	let loading = true;
-	let message = {};
+	let randomMessage = {};
 	async function getRandomMessage() {
 		loading = true;
 		const responseObject = await fetch('http://localhost:8080/messages/random').then((r) =>
 			r.json()
 		);
 
-		let timestampAsDate = new Date(responseObject.Timestamp);
-		let messageDate = timestampAsDate.toDateString();
-		console.log(responseObject);
-		console.log(timestampAsDate.getHours());
-		let timeStr = timestampAsDate.toTimeString();
-		message.timestamp = responseObject.Timestamp;
-		message.time = `${messageDate} @ ${timeStr.slice(0, 5)}`;
-		message.content = responseObject.Content;
-		message.reactions = responseObject.Reactions;
-		message.sender = responseObject.Sender;
-		message.reactions = responseObject.Reactions;
+		randomMessage = mapToMessage(responseObject);
 		loading = false;
 	}
 
-	let context = [];
+	let contextLoaded = false;
+	let priorMessages = [];
+	let subsequentMessages = [];
 	async function getContext(timestamp) {
-		const response = await fetch(`http://localhost:8080/context/${timestamp}`).then((r) =>
+		contextLoaded = false;
+		console.log('Timestamp for context: ', timestamp);
+
+		const response = await fetch(`http://localhost:8080/messages/${timestamp}`).then((r) =>
 			r.json()
 		);
 
 		console.log('context response: ', response);
-		for (let entry in response) {
-			context.push(entry);
+		for (let i in response) {
+			let goPrior = response[i].Timestamp < timestamp;
+			if (goPrior) {
+				priorMessages.push(mapToMessage(response[i]));
+			} else {
+				subsequentMessages.push(mapToMessage(response[i]));
+			}
 		}
+
+		console.log('Prior: ', priorMessages);
+		console.log('Subsequent: ', subsequentMessages);
+		contextLoaded = true;
+	}
+
+	function mapToMessage(backEndMessage) {
+		let timestampAsDate = new Date(backEndMessage.Timestamp);
+		let messageDate = timestampAsDate.toDateString();
+		let timeStr = timestampAsDate.toTimeString();
+		let mappedMessage = {};
+		mappedMessage.timestamp = backEndMessage.Timestamp;
+		mappedMessage.time = `${messageDate} @ ${timeStr.slice(0, 5)}`;
+		mappedMessage.content = backEndMessage.Content;
+		mappedMessage.reactions = backEndMessage.Reactions;
+		mappedMessage.sender = backEndMessage.Sender;
+		mappedMessage.reactions = backEndMessage.Reactions;
+
+		return mappedMessage;
 	}
 
 	onMount(getRandomMessage);
@@ -40,25 +59,47 @@
 
 {#if loading}
 	<p>Getting random message...</p>
-{:else}
-	<p>{message.sender}</p>
-	<p>{message.content}</p>
-	<p>{message.time}</p>
-	{#if message.reactions}
-		{#each message.reactions as reaction}
+{/if}
+
+{#if contextLoaded}
+	{#each priorMessages as pMessage}
+		<p>{pMessage.sender}</p>
+		<p>{pMessage.content}</p>
+		<p>{pMessage.time}</p>
+		{#if pMessage.reactions}
+			{#each pMessage.reactions as reaction}
+				<p>{reaction.Actor} {reaction.Reaction}</p>
+			{/each}
+		{/if}
+	{/each}
+{/if}
+{#if !loading}
+	<p>{randomMessage.sender}</p>
+	<p>{randomMessage.content}</p>
+	<p>{randomMessage.time}</p>
+	{#if randomMessage.reactions}
+		{#each randomMessage.reactions as reaction}
 			<p>{reaction.Actor} {reaction.Reaction}</p>
 		{/each}
 	{/if}
 {/if}
-
-{#if context.length > 0}
-	<p>Context</p>
-	{#each context as c}
-		<p>{c}</p>
+{#if contextLoaded}
+	{#each subsequentMessages as sMessage}
+		<p>{sMessage.sender}</p>
+		<p>{sMessage.content}</p>
+		<p>{sMessage.time}</p>
+		{#if sMessage.reactions}
+			{#each sMessage.reactions as reaction}
+				<p>{reaction.Actor} {reaction.Reaction}</p>
+			{/each}
+		{/if}
 	{/each}
 {/if}
 
 <button on:click={() => getRandomMessage()}> Get Random Message </button>
-<button disabled={message.timestamp !== undefined} on:click={() => getContext(message.timestamp)}>
+<button
+	disabled={randomMessage.timestamp === undefined}
+	on:click={() => getContext(randomMessage.timestamp)}
+>
 	Get Context
 </button>
