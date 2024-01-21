@@ -9,40 +9,40 @@ type Participants struct {
 }
 
 type Reaction struct {
-	Reaction string
-	Actor    string
+	Reaction string `json:"reaction"`
+	Actor    string `json:"actor"`
 }
 
 type Photo struct {
-	Uri string
+	Uri string `json:"uri"`
 }
 
 type Video struct {
-	Uri string
+	Uri string `json:"uri"`
 }
 
 type Gif struct {
-	Uri string
+	Uri string `json:"uri"`
 }
 
 type Share struct {
-	Link      string
-	ShareText string `bson:"share_text"`
+	Link      string `json:"link"`
+	ShareText string `bson:"share_text" json:"shareText"`
 }
 
 type Messages struct {
-	Messages []Message
+	Messages []Message `json:"messages"`
 }
 
 type Message struct {
-	Id        primitive.ObjectID `bson:"_id"`
-	Sender    string             `bson:"sender_name"`
-	Timestamp int64              `bson:"timestamp_ms"`
-	Content   string
-	Photos    []Photo
-	Reactions []Reaction
-	Gifs      []Gif
-	Videos    []Video
-	Share     Share
-	Type      string
+	Id        primitive.ObjectID `bson:"_id" json:"id"`
+	Sender    string             `bson:"sender_name" json:"sender"`
+	Timestamp int64              `bson:"timestamp_ms" json:"timestamp"`
+	Content   string             `json:"content"`
+	Photos    []Photo            `json:"photos"`
+	Reactions []Reaction         `json:"reactions"`
+	Gifs      []Gif              `json:"gifs"`
+	Videos    []Video            `json:"videos"`
+	Share     Share              `json:"share"`
+	Type      string             `json:type"`
 }
