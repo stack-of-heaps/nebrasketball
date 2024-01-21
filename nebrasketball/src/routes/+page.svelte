@@ -1,9 +1,11 @@
-<script lang>
+<script lang="ts">
 	import { onMount } from 'svelte';
+	import { Message, ServerMessage } from '$lib/types';
+	import mapToMessage from '$lib/mapper';
 
 	let loading = true;
-	let randomMessage = {};
-	async function getRandomMessage() {
+	let randomMessage = {} as Message;
+	async function getRandomMessage(): Promise<void> {
 		loading = true;
 		const responseObject = await fetch('http://localhost:8080/messages/random').then((r) =>
 			r.json()
@@ -14,9 +16,9 @@
 	}
 
 	let contextLoaded = false;
-	let priorMessages = [];
-	let subsequentMessages = [];
-	async function getContext(timestamp) {
+	let priorMessages = [] as Message[];
+	let subsequentMessages = [] as Message[];
+	async function getContext(timestamp: number) {
 		contextLoaded = false;
 		console.log('Timestamp for context: ', timestamp);
 
@@ -37,21 +39,6 @@
 		console.log('Prior: ', priorMessages);
 		console.log('Subsequent: ', subsequentMessages);
 		contextLoaded = true;
-	}
-
-	function mapToMessage(backEndMessage) {
-		let timestampAsDate = new Date(backEndMessage.Timestamp);
-		let messageDate = timestampAsDate.toDateString();
-		let timeStr = timestampAsDate.toTimeString();
-		let mappedMessage = {};
-		mappedMessage.timestamp = backEndMessage.Timestamp;
-		mappedMessage.time = `${messageDate} @ ${timeStr.slice(0, 5)}`;
-		mappedMessage.content = backEndMessage.Content;
-		mappedMessage.reactions = backEndMessage.Reactions;
-		mappedMessage.sender = backEndMessage.Sender;
-		mappedMessage.reactions = backEndMessage.Reactions;
-
-		return mappedMessage;
 	}
 
 	onMount(getRandomMessage);
