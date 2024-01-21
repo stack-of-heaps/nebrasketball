@@ -1,14 +1,14 @@
 export type ServerMessage = {
     Id: string,
-    Sender: string,
-    Timestamp: number,
-    Content: string,
-    Photos: Photo[],
-    Reactions: Reaction[],
-    Gifs: Gif[],
-    Videos: Video[],
-    Share: Share,
-    Type: string
+    sender: string,
+    timestamp: number,
+    content: string,
+    photos: Photo[],
+    reactions: Reaction[],
+    gifs: Gif[],
+    videos: Video[],
+    share: Share,
+    type: string
 }
 
 export type Message = {

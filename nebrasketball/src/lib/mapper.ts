@@ -1,16 +1,16 @@
-import { Message, ServerMessage } 
+import type { Message, ServerMessage } from '$lib/types';
 
 export default function mapToMessage(backEndMessage: ServerMessage): Message {
-    let timestampAsDate = new Date(backEndMessage.Timestamp);
+    let timestampAsDate = new Date(backEndMessage.timestamp);
     let messageDate = timestampAsDate.toDateString();
     let timeStr = timestampAsDate.toTimeString();
-    let mappedMessage = {} as Message;
-    mappedMessage.timestamp = backEndMessage.Timestamp;
-    mappedMessage.time = `${messageDate} @ ${timeStr.slice(0, 5)}`;
-    mappedMessage.content = backEndMessage.Content;
-    mappedMessage.reactions = backEndMessage.Reactions;
-    mappedMessage.sender = backEndMessage.Sender;
-    mappedMessage.reactions = backEndMessage.Reactions;
+    let mappedMessage: Message = {
+        timestamp: backEndMessage.timestamp,
+        time: `${messageDate} @ ${timeStr.slice(0, 5)}`,
+        content: backEndMessage.content,
+        reactions: backEndMessage.reactions,
+        sender: backEndMessage.sender
+    }
 
-    return mappedMessage;
+    return mappedMessage
 }
