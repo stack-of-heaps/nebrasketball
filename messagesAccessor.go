@@ -62,7 +62,7 @@ func CompareTimestampValue(a, b Message) int {
 		return 0
 	}
 
-	return 0
+	return -1
 }
 
 func (messagesAccessor *MessagesAccessor) GetRandomMessage(participant string) Message {
@@ -225,7 +225,7 @@ func (messagesAccessor *MessagesAccessor) goBackwards(
 			"$match": M{"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime}},
 		},
 		{
-			"$sort": M{"timestamp_ms": -1},
+			"$sort": M{"timestamp_ms": 1},
 		},
 		{
 			"$limit": 100,
@@ -263,7 +263,7 @@ func (messagesAccessor *MessagesAccessor) goForwards(
 			},
 		},
 		{
-			"$sort": M{"timestamp_ms": 1},
+			"$sort": M{"timestamp_ms": -1},
 		},
 		{
 			"$limit": 100,
