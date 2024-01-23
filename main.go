@@ -127,8 +127,6 @@ func GetContext(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 
 		timestampAsInt, err := strconv.ParseInt(timestamp, 10, 64)
 
-		fmt.Print("Timestamp: ", timestampAsInt)
-
 		if err != nil {
 			w.WriteHeader(400)
 		}
