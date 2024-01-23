@@ -3,11 +3,19 @@
 	export let message = {} as Message;
 </script>
 
-<p>{message.sender}</p>
+<div>
+	<b>{message.sender}</b>
+	<p class="tiny">{message.time}</p>
+</div>
 <p>{message.content}</p>
-<p>{message.time}</p>
 {#if message.reactions}
 	{#each message.reactions as reaction}
 		<p>{reaction.actor} {reaction.reaction}</p>
 	{/each}
 {/if}
+
+<style>
+	.tiny {
+		font-size: 8px;
+	}
+</style>
