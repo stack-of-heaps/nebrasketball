@@ -4,8 +4,19 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type Audio struct {
+	Uri string `json:"uri"`
+}
+type Gif struct {
+	Uri string `json:"uri"`
+}
+
 type Participants struct {
 	Name string
+}
+
+type Photo struct {
+	Uri string `json:"uri"`
 }
 
 type Reaction struct {
@@ -13,29 +24,18 @@ type Reaction struct {
 	Actor    string `json:"actor"`
 }
 
-type Photo struct {
-	Uri string `json:"uri"`
+type Share struct {
+	Link      string `json:"link"`
+	ShareText string `bson:"share_text" json:"shareText"`
 }
 
 type Video struct {
 	Uri string `json:"uri"`
 }
 
-type Gif struct {
-	Uri string `json:"uri"`
-}
-
-type Share struct {
-	Link      string `json:"link"`
-	ShareText string `bson:"share_text" json:"shareText"`
-}
-
-type Messages struct {
-	Messages []Message `json:"messages"`
-}
-
 type Message struct {
 	Id        primitive.ObjectID `bson:"_id" json:"id"`
+	Audio     []Audio            `json:"audio"`
 	Sender    string             `bson:"sender_name" json:"sender"`
 	Timestamp int64              `bson:"timestamp_ms" json:"timestamp"`
 	Content   string             `json:"content"`
@@ -44,5 +44,4 @@ type Message struct {
 	Gifs      []Gif              `json:"gifs"`
 	Videos    []Video            `json:"videos"`
 	Share     Share              `json:"share"`
-	Type      string             `json:type"`
 }
