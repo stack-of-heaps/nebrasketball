@@ -4,19 +4,33 @@ export type ServerMessage = {
     timestamp: number,
     content: string,
     photos: Photo[],
+    shares: Share[],
     reactions: Reaction[],
     gifs: Gif[],
     videos: Video[],
     share: Share,
-    type: string
+    type: string,
+    audio: BackEndAudio[]
 }
 
 export type Message = {
+    audio: BronerAudio[],
     content: string,
+    gifs: Gif[],
+    photos: Photo[],
+    reactions: Reaction[],
     sender: string,
-    timestamp: number,
     time: string,
-    reactions: Reaction[]
+    timestamp: number,
+    videos: Video[]
+}
+
+export type BackEndAudio = {
+    uri: string
+}
+
+export type BronerAudio = {
+    uri: string
 }
 
 export type Reaction = {
