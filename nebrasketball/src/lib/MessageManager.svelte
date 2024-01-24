@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import MessageComponent from './MessageComponent.svelte';
 	import type { Message, ServerMessage } from '$lib/types';
+	import { Center, Stack, Button, Group, Chip } from '../../node_modules/@svelteuidev/core';
 
 	let loading = true;
 	let randomMessage = {} as Message;
@@ -46,30 +47,80 @@
 	}
 
 	onMount(getRandomMessage);
+
+	let cbSelected = false;
+	let ssSelected = false;
+	let kkSelected = false;
+	let nzSelected = false
+	let kwSelected = false;
 </script>
 
-{#if loading}
-	<p>Getting random message...</p>
-{/if}
+<Center>
+	<Stack>
+		{#if loading}
+			<p>Getting random message...</p>
+		{/if}
 
-{#if contextLoaded}
-	{#each priorMessages as pMessage}
-		<MessageComponent message={pMessage} />
-	{/each}
-{/if}
-{#if !loading}
-	<MessageComponent message={randomMessage} />
-{/if}
-{#if contextLoaded}
-	{#each subsequentMessages as sMessage}
-		<MessageComponent message={sMessage} />
-	{/each}
-{/if}
+		{#if contextLoaded}
+			{#each priorMessages as pMessage}
+				<MessageComponent message={pMessage} />
+			{/each}
+		{/if}
+		{#if !loading}
+			<MessageComponent message={randomMessage} />
+		{/if}
+		{#if contextLoaded}
+			{#each subsequentMessages as sMessage}
+				<MessageComponent message={sMessage} />
+			{/each}
+		{/if}
 
-<button on:click={() => getRandomMessage()}> Get Random Message </button>
-<button
-	disabled={randomMessage.timestamp === undefined}
-	on:click={() => getContext(randomMessage.timestamp)}
->
-	Get Context
-</button>
+		<Group position="center">
+			<Chip
+				on:change={() => {
+					cbSelected = !cbSelected;
+				}}
+			>
+				CB
+			</Chip>
+			<Chip
+				on:change={() => {
+					ssSelected = !ssSelected;
+				}}
+			>
+				SS
+			</Chip>
+			<Chip
+				on:change={() => {
+					kkSelected = !kkSelected;
+				}}
+			>
+				KK
+			</Chip>
+			<Chip
+				on:change={() => {
+					nzSelected = !nzSelected;
+				}}
+			>
+				NZ	
+			</Chip>
+			<Chip
+				on:change={() => {
+					kwSelected = !kwSelected;
+				}}
+			>
+				KW
+			</Chip>
+		</Group>
+
+		<Group position="center">
+			<Button on:click={() => getRandomMessage()}>Get Random Message</Button>
+			<Button
+				disabled={randomMessage.timestamp === undefined}
+				on:click={() => getContext(randomMessage.timestamp)}
+			>
+				Get Context
+			</Button>
+		</Group>
+	</Stack>
+</Center>
