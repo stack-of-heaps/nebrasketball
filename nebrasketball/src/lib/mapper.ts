@@ -9,12 +9,7 @@ export default function mapToMessage(backEndMessage: ServerMessage): Message {
         content: backEndMessage.content,
         gifs: backEndMessage.gifs,
         photos: backEndMessage.photos,
-        reactions: backEndMessage.reactions.map((r) => {
-            if (!r) {
-                return {} as Reaction
-            }
-            return { actor: getInitials(r.actor), reaction: r.reaction } as Reaction
-        }),
+        reactions: backEndMessage.reactions?.map((r) => { return { actor: getInitials(r.actor), reaction: r.reaction } as Reaction }),
         sender: getInitials(backEndMessage.sender),
         time: `${messageDate} @ ${timeStr.slice(0, 5)}`,
         timestamp: backEndMessage.timestamp,
