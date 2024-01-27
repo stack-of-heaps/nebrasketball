@@ -6,26 +6,26 @@
 	import { Center, Stack, Button, Group, Chip } from '../../node_modules/@svelteuidev/core';
 
 	let loading = true;
+	let messages = [] as Message[];
 	let randomMessage = {} as Message;
-	async function getRandomMessage(): Promise<void> {
-		priorMessages = [] as Message[];
-		subsequentMessages = [] as Message[];
+
+	async function getRandomMessage(participants: string): Promise<void> {
 		loading = true;
 		randomMessage = {} as Message;
-		const responseObject = await fetch('http://localhost:8080/messages/random').then((r) =>
-			r.json()
-		);
+		messages = [];
+		const responseObject = await fetch(
+			`http://localhost:8080/messages/random?participants=${participants}`
+		).then((r) => r.json());
 
-		randomMessage = mapToMessage(responseObject);
+		let seedMessage = mapToMessage(responseObject);
+		randomMessage = seedMessage;
+		messages.push(seedMessage);
+		messages = messages;
 		loading = false;
 	}
 
 	let contextLoaded = false;
-	let priorMessages = [] as Message[];
-	let subsequentMessages = [] as Message[];
 	async function getContext(timestamp: number) {
-		priorMessages = [] as Message[];
-		subsequentMessages = [] as Message[];
 		contextLoaded = false;
 		console.log('Timestamp for context: ', timestamp);
 
@@ -35,23 +35,38 @@
 
 		console.log('context response: ', response);
 		for (let i in response) {
-			let goPrior = response[i].timestamp < timestamp;
-			if (goPrior) {
-				priorMessages.push(mapToMessage(response[i]));
+			if (messages.find((m) => m.timestamp === response[i].timestamp)) {
+				continue;
 			} else {
-				subsequentMessages.push(mapToMessage(response[i]));
+				messages.push(mapToMessage(response[i]));
 			}
 		}
 
+		messages = messages.sort(
+			(firstMessage, secondMessage) => firstMessage.timestamp - secondMessage.timestamp
+		);
 		contextLoaded = true;
 	}
 
-	onMount(getRandomMessage);
+	function getParticipants(): string {
+		let participants = '';
+		if (cbSelected) participants += 'Charles Baker,';
+		if (ssSelected) participants += 'Spencer Smith,';
+		if (kkSelected) participants += 'Kyle Karthauser,';
+		if (nzSelected) participants += 'Nathan Zielinski,';
+		if (kwSelected) participants += 'Kiel Walker,';
+
+		return participants;
+	}
+
+	onMount(() => {
+		getRandomMessage(getParticipants());
+	});
 
 	let cbSelected = false;
 	let ssSelected = false;
 	let kkSelected = false;
-	let nzSelected = false
+	let nzSelected = false;
 	let kwSelected = false;
 </script>
 
@@ -61,17 +76,9 @@
 			<p>Getting random message...</p>
 		{/if}
 
-		{#if contextLoaded}
-			{#each priorMessages as pMessage}
-				<MessageComponent message={pMessage} />
-			{/each}
-		{/if}
 		{#if !loading}
-			<MessageComponent message={randomMessage} />
-		{/if}
-		{#if contextLoaded}
-			{#each subsequentMessages as sMessage}
-				<MessageComponent message={sMessage} />
+			{#each messages as message}
+				<MessageComponent {message} />
 			{/each}
 		{/if}
 
@@ -102,7 +109,7 @@
 					nzSelected = !nzSelected;
 				}}
 			>
-				NZ	
+				NZ
 			</Chip>
 			<Chip
 				on:change={() => {
@@ -114,11 +121,8 @@
 		</Group>
 
 		<Group position="center">
-			<Button on:click={() => getRandomMessage()}>Get Random Message</Button>
-			<Button
-				disabled={randomMessage.timestamp === undefined}
-				on:click={() => getContext(randomMessage.timestamp)}
-			>
+			<Button on:click={() => getRandomMessage(getParticipants())}>Get Random Message</Button>
+			<Button disabled={messages.length != 1} on:click={() => getContext(randomMessage.timestamp)}>
 				Get Context
 			</Button>
 		</Group>
