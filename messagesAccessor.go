@@ -8,8 +8,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 type M = bson.M
@@ -65,14 +63,12 @@ func CompareTimestampValue(a, b Message) int {
 	return -1
 }
 
-func (messagesAccessor *MessagesAccessor) GetRandomMessage(participant string) Message {
+func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string) Message {
 	getRandomBson := M{"$sample": M{"size": 1}}
 	pipeline := []M{}
-	if participant != "" {
-		caser := cases.Title(language.AmericanEnglish)
-		participant = caser.String(participant)
+	if len(participants) != 0 {
 		pipeline = []M{
-			{"$match": M{"sender_name": participant}},
+			{"$match": M{"sender_name": M{"$in": participants}}},
 			getRandomBson,
 		}
 	} else {
