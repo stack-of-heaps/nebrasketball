@@ -64,16 +64,18 @@ func CompareTimestampValue(a, b Message) int {
 }
 
 func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string) Message {
+	fmt.Println("Participants: ", participants)
 	getRandomBson := M{"$sample": M{"size": 1}}
 	pipeline := []M{}
 	if len(participants) != 0 {
 		pipeline = []M{
 			{"$match": M{"sender_name": M{"$in": participants}}},
-			getRandomBson,
+			{"$sample": M{"size": 1}},
 		}
 	} else {
 		pipeline = []M{getRandomBson}
 	}
+
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
 
 	if err != nil {

@@ -28,10 +28,9 @@ type GetMessagesRequest struct {
 }
 
 func main() {
-	// mongoURI := "mongodb+srv://kak:ricosuave@kak-6wzzo.gcp.mongodb.net/test?retryWrites=true&w=majority"
-	mongoUri := "mongodb://localhost:27017"
+	config := GetConfiguration()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
+	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(config.ConnectionString))
 
 	defer cancel()
 	collection := client.Database("nebrasketball").Collection("messages")
@@ -53,9 +52,9 @@ func main() {
 	// - pageSize
 	// - type
 	// - gifs, photos, videos, shares
-	router.Handle("/messages/random", GetRandomMessage(messagesAccessor)).Methods("GET")
-	router.Handle("/conversations/random", GetConversation(messagesAccessor)).Methods("GET")
-	router.Handle("/messages/{timestamp}", GetContext(messagesAccessor)).Methods("GET")
+	router.Handle("/messages/random", GetRandomMessage(messagesAccessor, &config)).Methods("GET")
+	router.Handle("/conversations/random", GetConversation(messagesAccessor, &config)).Methods("GET")
+	router.Handle("/messages/{timestamp}", GetContext(messagesAccessor, &config)).Methods("GET")
 	// router.Handle("/sender/{sender}/messages", newGetMessages(dbClient)).Methods("GET")
 
 	port := os.Getenv("PORT")
@@ -74,19 +73,23 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func GetRandomMessage(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+func GetRandomMessage(messagesAccessor *MessagesAccessor, configuration *Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		query := r.URL.Query()
-		participant := query.Get("participant")
-		message := messagesAccessor.GetRandomMessage(participant)
+		participantsString := query.Get("participants")
+		participants := []string{}
+		if participantsString != "" {
+			participants = strings.Split(participantsString, ",")
+		}
+		message := messagesAccessor.GetRandomMessage(participants)
 		json, _ := json.Marshal(message)
 
 		w.Write(json)
 	}
 }
 
-func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+func GetConversation(messagesAccessor *MessagesAccessor, configuration *Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		fuzzFactor := 0
@@ -117,7 +120,7 @@ func GetConversation(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 	}
 }
 
-func GetContext(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+func GetContext(messagesAccessor *MessagesAccessor, configuration *Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		timestamp := mux.Vars(r)["timestamp"]
 		if timestamp == "nil" {
@@ -144,7 +147,7 @@ func GetContext(messagesAccessor *MessagesAccessor) http.HandlerFunc {
 // - pageStart
 // - pageEnd
 // - pageSize
-func GetMessages(messagesAccessor *MessagesAccessor) http.HandlerFunc {
+func GetMessages(messagesAccessor *MessagesAccessor, configuration *Configuration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		queryParams := r.URL.Query()
