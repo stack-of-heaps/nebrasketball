@@ -80,8 +80,9 @@ func GetRandomMessage(messagesAccessor *MessagesAccessor, configuration *Configu
 		participantsString := query.Get("participants")
 		participants := []string{}
 		if participantsString != "" {
-			participants = strings.Split(participantsString, ",")
+			participants = getParticipants(participantsString, configuration)
 		}
+
 		message := messagesAccessor.GetRandomMessage(participants)
 		json, _ := json.Marshal(message)
 
@@ -105,14 +106,12 @@ func GetConversation(messagesAccessor *MessagesAccessor, configuration *Configur
 			fuzzFactor = int(parsedFuzzFactor)
 		}
 
-		rawParticipants := query.Get("participants")
-		if rawParticipants == "" {
-			errorString := "no participants provided in query string"
-			w.WriteHeader(400)
-			w.Write([]byte(errorString))
+		participantsString := query.Get("participants")
+		participants := []string{}
+		if participantsString != "" {
+			participants = getParticipants(participantsString, configuration)
 		}
 
-		participants := strings.Split(rawParticipants, ",")
 		messages := messagesAccessor.GetConversation(participants, fuzzFactor)
 		json, _ := json.Marshal(messages)
 
@@ -177,4 +176,13 @@ func GetMessages(messagesAccessor *MessagesAccessor, configuration *Configuratio
 
 		w.Write(messagesJson)
 	}
+}
+
+func getParticipants(participantsQuery string, config *Configuration) []string {
+	unmappedParticipants := strings.Split(participantsQuery, ",")
+	participants := []string{}
+	for _, p := range unmappedParticipants {
+		participants = append(participants, config.Participants[p])
+	}
+	return participants
 }
