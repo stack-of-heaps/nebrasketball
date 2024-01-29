@@ -28,12 +28,13 @@ type GetMessagesRequest struct {
 }
 
 func main() {
+
 	config := GetConfiguration()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(config.ConnectionString))
-
+	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(config.Db.ConnectionString))
 	defer cancel()
-	collection := client.Database("nebrasketball").Collection("messages")
+
+	collection := client.Database(config.Db.Database).Collection(config.Db.Collection)
 	messagesAccessor := &MessagesAccessor{Messages: collection}
 
 	router := mux.NewRouter()
@@ -44,13 +45,12 @@ func main() {
 
 	router.Handle("/", http.FileServer(http.Dir(("./static"))))
 
-	// Possible query params:
-	// - FromDate (datetime)
-	// - ToDate (datetime)
+	// Query params:
 	// - random (bool)
-	// - page
-	// - pageSize
-	// - type
+	// - participants (comma-separated string)
+	// TODO
+	// - FromDate (int64: ms from epoch)
+	// - ToDate (int64: ms from epoch)
 	// - gifs, photos, videos, shares
 	router.Handle("/messages/random", GetRandomMessage(messagesAccessor, &config)).Methods("GET")
 	router.Handle("/conversations/random", GetConversation(messagesAccessor, &config)).Methods("GET")
@@ -59,18 +59,18 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Google services wants 8080 or will decide for us.
+		port = "8080"
 	}
-	log.Printf("Listening on port %s", port)
 
 	srv := &http.Server{
 		Handler:      handler,
-		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
+		Addr:         fmt.Sprintf("%s:%s", config.ServerAddress, port),
 		WriteTimeout: 10 * time.Second,
 		ReadTimeout:  10 * time.Second,
 	}
 
 	log.Fatal(srv.ListenAndServe())
+	log.Printf("Listening on port %s", port)
 }
 
 func GetRandomMessage(messagesAccessor *MessagesAccessor, configuration *Configuration) http.HandlerFunc {

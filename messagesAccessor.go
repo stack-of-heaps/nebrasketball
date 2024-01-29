@@ -51,21 +51,8 @@ func (messagesAccessor *MessagesAccessor) GetMessages(getMessagesRequest GetMess
 	return messages
 }
 
-func CompareTimestampValue(a, b Message) int {
-	if a.Timestamp > b.Timestamp {
-		return 1
-	}
-
-	if a.Timestamp == b.Timestamp {
-		return 0
-	}
-
-	return -1
-}
-
 func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string) Message {
-	fmt.Println("Participants: ", participants)
-	getRandomBson := M{"$sample": M{"size": 1}}
+
 	pipeline := []M{}
 	if len(participants) != 0 {
 		pipeline = []M{
@@ -73,7 +60,7 @@ func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string
 			{"$sample": M{"size": 1}},
 		}
 	} else {
-		pipeline = []M{getRandomBson}
+		pipeline = []M{{"$sample": M{"size": 1}}}
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
@@ -130,6 +117,7 @@ func (messagesAccessor *MessagesAccessor) goForwardsFixedOperation(
 	wg *sync.WaitGroup,
 	startingTimestamp int64,
 	messages *[]Message) {
+
 	pipeline := []M{
 		{"$match": M{"timestamp_ms": M{"$gt": startingTimestamp}}},
 		{"$sort": M{"timestamp_ms": 1}},
@@ -147,12 +135,8 @@ func (messagesAccessor *MessagesAccessor) goForwardsFixedOperation(
 
 func (messagesAccessor *MessagesAccessor) GetConversation(participants []string, fuzzFactor int) []Message {
 	pipeline := []M{
-		{
-			"$match": M{"sender_name": M{"$in": participants}},
-		},
-		{
-			"$sample": M{"size": 1},
-		},
+		{"$match": M{"sender_name": M{"$in": participants}}},
+		{"$sample": M{"size": 1}},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
@@ -219,15 +203,9 @@ func (messagesAccessor *MessagesAccessor) goBackwards(
 	defer wg.Done()
 
 	pipeline := []M{
-		{
-			"$match": M{"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime}},
-		},
-		{
-			"$sort": M{"timestamp_ms": 1},
-		},
-		{
-			"$limit": 100,
-		},
+		{"$match": M{"timestamp_ms": M{"$gt": greaterThanTimestamp, "$lt": startTime}}},
+		{"$sort": M{"timestamp_ms": 1}},
+		{"$limit": 100},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
@@ -255,17 +233,9 @@ func (messagesAccessor *MessagesAccessor) goForwards(
 
 	lessThanTimestamp := startTime + (seconds * 1000)
 	pipeline := []M{
-		{
-			"$match": M{
-				"timestamp_ms": M{"$gt": startTime, "$lt": lessThanTimestamp},
-			},
-		},
-		{
-			"$sort": M{"timestamp_ms": -1},
-		},
-		{
-			"$limit": 100,
-		},
+		{"$match": M{"timestamp_ms": M{"$gt": startTime, "$lt": lessThanTimestamp}}},
+		{"$sort": M{"timestamp_ms": -1}},
+		{"$limit": 100},
 	}
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
