@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Group, Chip } from '@svelteuidev/core';
+	import { Group, Chip, UnstyledButton, ThemeIcon, Text } from '@svelteuidev/core';
 
 	export let filterSelections = '';
 
@@ -24,14 +24,17 @@
 </script>
 
 <Group position="center">
-	<Chip
-		on:change={() => {
+	<UnstyledButton
+		on:click={() => {
 			audioSelected = !audioSelected;
 			filterSelections = getFilters();
 		}}
 	>
-		audio
-	</Chip>
+		<ThemeIcon radius="xl" size="xl" color="violet" variant={audioSelected ? 'filled' : 'light'}
+			><Text weight="semibold" size="xs" color={audioSelected ? 'white' : 'black'}>audio</Text
+			></ThemeIcon
+		>
+	</UnstyledButton>
 	<Chip
 		on:change={() => {
 			gifSelected = !gifSelected;
