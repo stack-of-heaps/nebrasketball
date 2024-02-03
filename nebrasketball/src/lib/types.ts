@@ -1,16 +1,15 @@
 export type ServerMessage = {
-    Id: string,
-    sender: string,
-    timestamp: number,
+    audio: BackEndAudio[],
     content: string,
-    photos: Photo[],
-    shares: Share[],
-    reactions: Reaction[],
     gifs: Gif[],
-    videos: Video[],
+    id: string,
+    photos: Photo[],
+    reactions: Reaction[],
+    sender: string,
     share: Share,
+    timestamp: number,
     type: string,
-    audio: BackEndAudio[]
+    videos: Video[]
 }
 
 export type Message = {
@@ -20,6 +19,7 @@ export type Message = {
     photos: Photo[],
     reactions: Reaction[],
     sender: string,
+    share: Share,
     time: string,
     timestamp: number,
     videos: Video[]
@@ -47,8 +47,8 @@ export type Photo = {
 }
 
 export type Share = {
-    Link: string,
-    ShareText: string
+    link: string,
+    shareText: string
 }
 
 export type Video = {

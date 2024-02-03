@@ -17,6 +17,8 @@
 		if (nzSelected) participants += 'nz,';
 		if (kwSelected) participants += 'kw,';
 
+		if (participants.endsWith(',')) participants = participants.slice(0, participants.length - 1);
+
 		return participants;
 	}
 </script>

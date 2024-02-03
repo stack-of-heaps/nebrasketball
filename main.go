@@ -29,9 +29,14 @@ type GetMessagesRequest struct {
 
 func main() {
 
+	fmt.Println("starting main")
 	config := GetConfiguration()
+	fmt.Println("got config: ", config)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	client, _ := mongo.Connect(ctx, options.Client().ApplyURI(config.Db.ConnectionString))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(config.Db.ConnectionString))
+	if err != nil {
+		fmt.Println("mongo connect err: ", err)
+	}
 	defer cancel()
 
 	collection := client.Database(config.Db.Database).Collection(config.Db.Collection)
@@ -77,13 +82,23 @@ func GetRandomMessage(messagesAccessor *MessagesAccessor, configuration *Configu
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		query := r.URL.Query()
+		fmt.Println("query: ", query)
 		participantsString := query.Get("participants")
 		participants := []string{}
 		if participantsString != "" {
 			participants = getParticipants(participantsString, configuration)
 		}
 
-		message := messagesAccessor.GetRandomMessage(participants)
+		filtersString := query.Get("filters")
+		filters := []string{}
+		if filtersString != "" {
+			filters = strings.Split(filtersString, ",")
+		}
+
+		fmt.Println("query filters: ", filtersString)
+		fmt.Println("filters: ", filters)
+
+		message := messagesAccessor.GetRandomMessage(participants, filters)
 		json, _ := json.Marshal(message)
 
 		w.Write(json)

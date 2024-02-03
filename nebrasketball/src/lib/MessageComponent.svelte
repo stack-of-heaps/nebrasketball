@@ -30,10 +30,13 @@
 			<p>{reaction.actor} {reaction.reaction}</p>
 		{/each}
 	{/if}
+	{#if message.share}
+		<a href="share.link">{message.share.link}</a>
+	{/if}
 </Paper>
 
 <style>
 	.tiny {
-		font-size: 8px;
+		font-size: 7px;
 	}
 </style>

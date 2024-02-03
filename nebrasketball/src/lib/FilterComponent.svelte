@@ -12,10 +12,12 @@
 	function getFilters(): string {
 		let filters = '';
 		if (audioSelected) filters += 'audio,';
-		if (gifSelected) filters += 'gif,';
-		if (photoSelected) filters += 'photo,';
+		if (gifSelected) filters += 'gifs,';
+		if (photoSelected) filters += 'photos,';
 		if (shareSelected) filters += 'share,';
-		if (videoSelected) filters += 'video,';
+		if (videoSelected) filters += 'videos,';
+
+		if (filters.endsWith(',')) filters = filters.slice(0, filters.length - 1);
 
 		return filters;
 	}
@@ -55,6 +57,8 @@
 		share
 	</Chip>
 	<Chip
+		size="xs"
+		color="purple"
 		on:change={() => {
 			videoSelected = !videoSelected;
 			filterSelections = getFilters();
@@ -63,3 +67,9 @@
 		video
 	</Chip>
 </Group>
+
+<style>
+	div {
+		font-size: 8px;
+	}
+</style>

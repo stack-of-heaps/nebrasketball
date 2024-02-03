@@ -51,17 +51,25 @@ func (messagesAccessor *MessagesAccessor) GetMessages(getMessagesRequest GetMess
 	return messages
 }
 
-func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string) Message {
+func (messagesAccessor *MessagesAccessor) GetRandomMessage(participants []string, filters []string) Message {
 
 	pipeline := []M{}
-	if len(participants) != 0 {
-		pipeline = []M{
-			{"$match": M{"sender_name": M{"$in": participants}}},
-			{"$sample": M{"size": 1}},
+	if len(filters) != 0 {
+		fmt.Println("Filters in accessor: ", filters)
+		for _, filter := range filters {
+			pipeline = append(pipeline, M{"$match": M{filter: M{"$exists": true}}})
 		}
-	} else {
-		pipeline = []M{{"$sample": M{"size": 1}}}
 	}
+
+	fmt.Println("Pipeline after filters: ", pipeline)
+
+	if len(participants) != 0 {
+		pipeline = append(pipeline, M{"$match": M{"sender_name": M{"$in": participants}}})
+	}
+
+	fmt.Println("Pipeline after participants: ", pipeline)
+
+	pipeline = append(pipeline, M{"$sample": M{"size": 1}})
 
 	cursor, err := messagesAccessor.Messages.Aggregate(context.Background(), pipeline)
 

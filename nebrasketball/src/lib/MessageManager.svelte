@@ -20,7 +20,7 @@
 	async function getSeedMessage(): Promise<void> {
 		loading = true;
 		await fetch(
-			`http://localhost:8080/messages/random?participants=${currentSenders}?filters=${currentFilters}`
+			`http://localhost:8080/messages/random?participants=${currentSenders}&filters=${currentFilters}`
 		)
 			.then((r) => r.json())
 			.then((json) => (seedMessage = mapToMessage(json)))
