@@ -1,29 +1,26 @@
 <script lang="ts">
 	import mapToMessage from '$lib/mapper';
 	import { onMount } from 'svelte';
+	import FilterComponent from './FilterComponent.svelte';
 	import MessageComponent from './MessageComponent.svelte';
 	import SenderComponent from './SenderComponent.svelte';
 	import type { Message, ServerMessage } from '$lib/types';
 	import { Center, Stack, Button, Group } from '../../node_modules/@svelteuidev/core';
 
 	let senderSelections = '';
-	$: currentSenderSelection = senderSelections;
+	$: currentSenders = senderSelections;
+	let filterSelections = '';
+	$: currentFilters = filterSelections;
 
-	let gifSelected = false;
-	let videoSelected = false;
-	let shareSelected = false;
-	let audioSelected = false;
 	let contextLoaded = false;
-	let photoSelected = false;
 	let loading = true;
 	let messages = [] as Message[];
 	let seedMessage = {} as Message;
 
 	async function getSeedMessage(): Promise<void> {
 		loading = true;
-		let filters = getFilters();
 		await fetch(
-			`http://localhost:8080/messages/random?participants=${currentSenderSelection}?filters=${filters}`
+			`http://localhost:8080/messages/random?participants=${currentSenders}?filters=${currentFilters}`
 		)
 			.then((r) => r.json())
 			.then((json) => (seedMessage = mapToMessage(json)))
@@ -55,17 +52,6 @@
 		contextLoaded = true;
 	}
 
-	function getFilters(): string {
-		let filters = '';
-		if (videoSelected) filters += 'video,';
-		if (audioSelected) filters += 'audio,';
-		if (photoSelected) filters += 'photo,';
-		if (shareSelected) filters += 'share,';
-		if (gifSelected) filters += 'gif,';
-
-		return filters;
-	}
-
 	onMount(() => {
 		getSeedMessage();
 	});
@@ -84,10 +70,11 @@
 		{/if}
 
 		<SenderComponent bind:senderSelections />
+		<FilterComponent bind:filterSelections />
 
 		<Group position="center">
 			<Button on:click={getSeedMessage}>Get Random Message</Button>
-			<Button disabled={messages.length != 1} on:click={() => getContext(seedMessage.timestamp)}>
+			<Button disabled={!seedMessage.timestamp} on:click={() => getContext(seedMessage.timestamp)}>
 				Get Context
 			</Button>
 		</Group>
