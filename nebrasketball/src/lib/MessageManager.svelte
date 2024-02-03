@@ -2,44 +2,51 @@
 	import mapToMessage from '$lib/mapper';
 	import { onMount } from 'svelte';
 	import MessageComponent from './MessageComponent.svelte';
+	import SenderComponent from './SenderComponent.svelte';
 	import type { Message, ServerMessage } from '$lib/types';
-	import { Center, Stack, Button, Group, Chip } from '../../node_modules/@svelteuidev/core';
+	import { Center, Stack, Button, Group } from '../../node_modules/@svelteuidev/core';
 
+	let senderSelections = '';
+	$: currentSenderSelection = senderSelections;
+
+	let gifSelected = false;
+	let videoSelected = false;
+	let shareSelected = false;
+	let audioSelected = false;
+	let contextLoaded = false;
+	let photoSelected = false;
 	let loading = true;
 	let messages = [] as Message[];
-	let randomMessage = {} as Message;
+	let seedMessage = {} as Message;
 
-	async function getRandomMessage(participants: string): Promise<void> {
+	async function getSeedMessage(): Promise<void> {
 		loading = true;
-		randomMessage = {} as Message;
-		messages = [];
-		const responseObject = await fetch(
-			`http://localhost:8080/messages/random?participants=${participants}`
-		).then((r) => r.json());
+		let filters = getFilters();
+		await fetch(
+			`http://localhost:8080/messages/random?participants=${currentSenderSelection}?filters=${filters}`
+		)
+			.then((r) => r.json())
+			.then((json) => (seedMessage = mapToMessage(json)))
+			.catch((err) => console.log('Error getting random message: ', err));
 
-		let seedMessage = mapToMessage(responseObject);
-		randomMessage = seedMessage;
-		messages.push(seedMessage);
+		messages = [seedMessage];
 		messages = messages;
 		loading = false;
 	}
 
-	let contextLoaded = false;
 	async function getContext(timestamp: number) {
 		contextLoaded = false;
 		console.log('Timestamp for context: ', timestamp);
 
-		const response: ServerMessage[] = await fetch(
-			`http://localhost:8080/messages/${timestamp}`
-		).then((r) => r.json());
+		const response: ServerMessage[] = await fetch(`http://localhost:8080/messages/${timestamp}`)
+			.then((r) => r.json())
+			.catch((err) => console.log('Error getting context: ', err));
 
 		console.log('context response: ', response);
 		for (let i in response) {
-			if (messages.find((m) => m.timestamp === response[i].timestamp)) {
-				continue;
-			} else {
-				messages.push(mapToMessage(response[i]));
-			}
+			i = i;
+			if (response[i].timestamp === timestamp) continue;
+			else messages.push(mapToMessage(response[i]));
 		}
 
 		messages = messages.sort(
@@ -48,26 +55,20 @@
 		contextLoaded = true;
 	}
 
-	function getParticipants(): string {
-		let participants = '';
-		if (cbSelected) participants += 'Charles Baker,';
-		if (ssSelected) participants += 'Spencer Smith,';
-		if (kkSelected) participants += 'Kyle Karthauser,';
-		if (nzSelected) participants += 'Nathan Zielinski,';
-		if (kwSelected) participants += 'Kiel Walker,';
+	function getFilters(): string {
+		let filters = '';
+		if (videoSelected) filters += 'video,';
+		if (audioSelected) filters += 'audio,';
+		if (photoSelected) filters += 'photo,';
+		if (shareSelected) filters += 'share,';
+		if (gifSelected) filters += 'gif,';
 
-		return participants;
+		return filters;
 	}
 
 	onMount(() => {
-		getRandomMessage(getParticipants());
+		getSeedMessage();
 	});
-
-	let cbSelected = false;
-	let ssSelected = false;
-	let kkSelected = false;
-	let nzSelected = false;
-	let kwSelected = false;
 </script>
 
 <Center>
@@ -82,47 +83,11 @@
 			{/each}
 		{/if}
 
-		<Group position="center">
-			<Chip
-				on:change={() => {
-					cbSelected = !cbSelected;
-				}}
-			>
-				CB
-			</Chip>
-			<Chip
-				on:change={() => {
-					ssSelected = !ssSelected;
-				}}
-			>
-				SS
-			</Chip>
-			<Chip
-				on:change={() => {
-					kkSelected = !kkSelected;
-				}}
-			>
-				KK
-			</Chip>
-			<Chip
-				on:change={() => {
-					nzSelected = !nzSelected;
-				}}
-			>
-				NZ
-			</Chip>
-			<Chip
-				on:change={() => {
-					kwSelected = !kwSelected;
-				}}
-			>
-				KW
-			</Chip>
-		</Group>
+		<SenderComponent bind:senderSelections />
 
 		<Group position="center">
-			<Button on:click={() => getRandomMessage(getParticipants())}>Get Random Message</Button>
-			<Button disabled={messages.length != 1} on:click={() => getContext(randomMessage.timestamp)}>
+			<Button on:click={getSeedMessage}>Get Random Message</Button>
+			<Button disabled={messages.length != 1} on:click={() => getContext(seedMessage.timestamp)}>
 				Get Context
 			</Button>
 		</Group>
